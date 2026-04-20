@@ -1,0 +1,6 @@
+{
+  "name": "测试",
+  "description": "支持多图批量处理的菜品美化工具，保持菜品原貌、70%占比、自动选择最佳视角，并确保批量处理时背景风格高度一致。支持点击放大查看美化结果。",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
