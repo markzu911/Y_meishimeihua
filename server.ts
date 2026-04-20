@@ -3,9 +3,11 @@ import { createServer as createViteServer } from "vite";
 import axios from "axios";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
+import dotenv from "dotenv";
 
-const GEMINI_API_KEY = "AIzaSyBrL4_b1qietQl4NuGhXfd2n2gSk91zbQk";
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+dotenv.config();
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 async function startServer() {
   const app = express();
