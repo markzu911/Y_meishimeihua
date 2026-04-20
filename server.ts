@@ -4,7 +4,7 @@ import axios from "axios";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 
-const GEMINI_API_KEY = "AIzaSyC-IIiSx0bAIhrnnhuvxFjVFotaiWVh9Dw";
+const GEMINI_API_KEY = "AIzaSyBrL4_b1qietQl4NuGhXfd2n2gSk91zbQk";
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 async function startServer() {
