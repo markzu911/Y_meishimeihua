@@ -1,2 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Long+Cang&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Long+Cang&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  
+  --color-brand-sage: #5F7B6B;
+  --color-brand-amber: #C27B40;
+  --color-brand-sand: #F8F7F4;
+  --color-brand-paper: #FDFCFB;
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased text-neutral-800 bg-brand-paper;
+  }
+  
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight text-neutral-900;
+  }
+}

@@ -7,7 +7,16 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getAI = () => {
+  const key = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  if (!key) {
+    console.error("ERROR: GEMINI_API_KEY is not defined in the environment.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
+
+let ai = getAI();
 
 async function startServer() {
   const app = express();
@@ -55,36 +64,27 @@ async function startServer() {
   });
 
   app.post("/api/gemini", async (req, res) => {
+    if (!ai) {
+      ai = getAI();
+    }
+    
+    if (!ai) {
+      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+    }
+
     const { model, payload } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: model || (payload.ratio ? 'gemini-3.1-flash-image-preview' : 'gemini-1.5-flash'),
-        contents: {
-          parts: [
-            ...(payload.base64Data ? [{ inlineData: { data: payload.base64Data, mimeType: payload.mimeType || 'image/png' } }] : []),
-            { text: payload.prompt }
-          ],
-        },
-        config: payload.ratio ? {
-          imageConfig: { aspectRatio: payload.ratio, imageSize: payload.resolution || '1K' }
-        } : undefined
+        model: model,
+        ...payload
       });
-
-      let generatedUrl = null;
-      if (payload.ratio) {
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
-          if (part.inlineData) {
-            generatedUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-            break;
-          }
-        }
-        res.json({ url: generatedUrl });
-      } else {
-        res.json({ text: response.text });
-      }
+      res.json(response);
     } catch (error: any) {
       console.error("Gemini Proxy Error:", error);
-      res.status(500).json({ error: error.message || "Gemini execution failed" });
+      res.status(error?.status || 500).json({ 
+        error: error.message || "Gemini execution failed",
+        details: error?.response?.data || error
+      });
     }
   });
 

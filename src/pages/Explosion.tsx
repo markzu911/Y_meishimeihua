@@ -67,10 +67,14 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
            method: "POST",
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({
-              model: "gemini-2.5-flash",
+              model: "gemini-3-flash-preview",
               payload: {
-                base64Data,
-                prompt
+                contents: {
+                  parts: [
+                    { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
+                    { text: prompt }
+                  ]
+                }
               }
            })
         });
@@ -78,7 +82,7 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
            throw new Error("Layer detection failed");
         }
         const data = await res.json();
-        const text = data.text || '';
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || '';
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           return JSON.parse(jsonMatch[0]);
@@ -310,11 +314,15 @@ ABSOLUTE RULE - NO TEXT:
                  body: JSON.stringify({
                     model: 'gemini-3.1-flash-image-preview',
                     payload: {
-                      base64Data,
-                      mimeType: selectedImages[i].type,
-                      prompt,
-                      ratio,
-                      resolution: selectedResolution
+                      contents: {
+                        parts: [
+                          { inlineData: { data: base64Data, mimeType: selectedImages[i].type } },
+                          { text: prompt }
+                        ]
+                      },
+                      config: {
+                        imageConfig: { aspectRatio: ratio, imageSize: selectedResolution }
+                      }
                     }
                  })
               });
@@ -323,7 +331,18 @@ ABSOLUTE RULE - NO TEXT:
                  throw new Error(errData.error || "Generation failed");
               }
               const data = await res.json();
-              generatedUrl = data.url;
+              
+              let extractedUrl = null;
+              for (const candidate of data.candidates || []) {
+                for (const part of candidate.content?.parts || []) {
+                  if (part.inlineData) {
+                    extractedUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+                    break;
+                  }
+                }
+                if (extractedUrl) break;
+              }
+              generatedUrl = extractedUrl;
               break;
             } catch (err: any) {
               const errorMessage = err.message || "";
@@ -554,15 +573,15 @@ ABSOLUTE RULE - NO TEXT:
   const hasResults = resultImages.some(res => Object.values(res).some(url => url !== null));
 
   return (
-    <div className="h-full flex flex-col bg-neutral-50 text-neutral-900 font-sans selection:bg-neutral-200">
-      <header className="bg-white border-b border-neutral-200 shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <div className="h-full flex flex-col bg-brand-paper text-neutral-900 font-sans selection:bg-brand-sage/20">
+      <header className="bg-brand-sand border-b border-neutral-200/60 shrink-0">
+        <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="bg-black p-2 rounded-lg text-white">
+            <div className="flex items-center gap-3">
+              <div className="bg-brand-sage p-2.5 rounded-xl text-white shadow-lg shadow-brand-sage/20">
                 <Layers className="w-5 h-5" />
               </div>
-              <h1 className="text-xl font-semibold tracking-tight">美食爆炸图</h1>
+              <h1 className="text-xl font-bold tracking-tight font-display">美食爆炸图</h1>
             </div>
           </div>
         </div>
@@ -573,15 +592,15 @@ ABSOLUTE RULE - NO TEXT:
           
           {/* Left Column: Controls */}
           <div className="space-y-6 lg:col-span-4 xl:col-span-3 overflow-y-auto pr-2 pb-4">
-            <section className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium">1. 上传菜品照片</h2>
-                <span className="text-sm text-neutral-500">{selectedImages.length > 0 ? '已选择 1 张' : '未选择'}</span>
+            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold font-display">1. 上传菜品照片</h2>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest">{selectedImages.length > 0 ? 'READY' : 'EMPTY'}</span>
               </div>
               
               <div 
-                className={`border-2 border-dashed rounded-xl overflow-hidden transition-colors cursor-pointer mb-4
-                  ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50'}`}
+                className={`border-2 border-dashed rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer mb-5
+                  ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-200 hover:border-brand-sage/50 hover:bg-brand-sand/30'}`}
                 onClick={() => !isGenerating && fileInputRef.current?.click()}
                 onDrop={!isGenerating ? handleDrop : undefined}
                 onDragOver={handleDragOver}
@@ -595,12 +614,12 @@ ABSOLUTE RULE - NO TEXT:
                 />
                 {previewUrls[0] ? (
                   <div className="relative w-full aspect-[4/3] group cursor-default">
-                    <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-neutral-100" />
+                    <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-brand-sand" />
                     <div 
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      className="absolute inset-0 bg-brand-sage/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                       onClick={() => !isGenerating && fileInputRef.current?.click()}
                     >
-                      <div className="bg-white/20 backdrop-blur-sm border border-white/30 text-white px-4 py-2 rounded-full text-sm font-medium">
+                      <div className="bg-white/90 text-brand-sage px-5 py-2.5 rounded-2xl text-sm font-bold shadow-xl shadow-brand-sage/20 transition-transform hover:scale-105">
                         点击更换图片
                       </div>
                     </div>
@@ -610,31 +629,29 @@ ABSOLUTE RULE - NO TEXT:
                           e.stopPropagation();
                           removeImage(0);
                         }}
-                        className="absolute top-2 right-2 z-10 bg-black/50 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                        className="absolute top-3 right-3 z-10 bg-white/90 text-neutral-400 p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:text-red-500 hover:bg-white shadow-lg"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="p-8 text-center">
-                    <div className="flex flex-col items-center justify-center py-4">
-                      <div className="bg-neutral-100 p-4 rounded-full text-neutral-900 mb-4">
+                  <div className="p-10 text-center">
+                    <div className="flex flex-col items-center justify-center py-6">
+                      <div className="bg-brand-sand p-5 rounded-2xl text-brand-sage mb-5 shadow-inner">
                         <Plus className="w-8 h-8" />
                       </div>
-                      <p className="text-neutral-700 font-medium mb-1">点击上传或拖拽图片到此处</p>
-                      <p className="text-neutral-500 text-sm">每次仅支持 1 张</p>
+                      <p className="text-neutral-800 font-bold mb-1 font-display">上传菜品原图</p>
+                      <p className="text-neutral-400 text-xs">点击上传或拖拽到此处</p>
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* Removing separate preview layout */}
             </section>
 
-            <section className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-medium mb-4">2. 选择输出比例（可多选）</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
+              <h2 className="text-lg font-bold font-display mb-5">2. 输出比例</h2>
+              <div className="grid grid-cols-2 gap-3">
                 {RATIOS.map((ratio) => {
                   const isSelected = selectedRatios.includes(ratio.id);
                   return (
@@ -648,36 +665,35 @@ ABSOLUTE RULE - NO TEXT:
                         );
                       }}
                       disabled={isGenerating}
-                      className={`text-center p-3 rounded-xl border transition-all ${
+                      className={`text-center p-4 rounded-2xl border-2 transition-all duration-300 ${
                         isSelected
-                          ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
-                          : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
+                          ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold' 
+                          : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-500 font-medium'
                       } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      <div className="font-medium">{ratio.name}</div>
-                      <div className="text-xs opacity-70 mt-0.5">{ratio.desc}</div>
+                      <div className="text-sm">{ratio.name}</div>
+                      <div className={`text-[10px] uppercase tracking-tighter mt-1 ${isSelected ? 'text-white/60' : 'text-neutral-400'}`}>{ratio.desc}</div>
                     </button>
                   );
                 })}
               </div>
             </section>
 
-            <section className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-200">
-              <h2 className="text-lg font-medium mb-4">3. 选择清晰度</h2>
+            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
+              <h2 className="text-lg font-bold font-display mb-5">3. 清晰度</h2>
               <div className="grid grid-cols-3 gap-3">
                 {RESOLUTIONS.map((res) => (
                   <button
                     key={res.id}
                     onClick={() => setSelectedResolution(res.id)}
                     disabled={isGenerating}
-                    className={`text-center p-3 rounded-xl border transition-all ${
+                    className={`text-center p-3.5 rounded-2xl border-2 transition-all duration-300 ${
                       selectedResolution === res.id 
-                        ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
-                        : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
+                        ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold' 
+                        : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-500 font-medium'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <div className="font-medium">{res.name}</div>
-                    <div className="text-xs opacity-70 mt-0.5">{res.desc}</div>
+                    <div className="text-sm">{res.name}</div>
                   </button>
                 ))}
               </div>
@@ -686,27 +702,27 @@ ABSOLUTE RULE - NO TEXT:
             <button
               onClick={generateImages}
               disabled={selectedImages.length === 0 || selectedRatios.length === 0 || isGenerating || (allGenerated && JSON.stringify(selectedRatios) === JSON.stringify(generatedRatios) && selectedResolution === generatedResolution)}
-              className="w-full bg-black hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="w-full bg-brand-sage hover:bg-brand-sage/90 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed text-white font-bold py-5 px-6 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 shadow-xl shadow-brand-sage/30 hover:translate-y-[-2px] active:scale-[0.98]"
             >
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  正在生成 - {generatingRatio}...
+                  释放极客创意中...
                 </>
               ) : (JSON.stringify(selectedRatios) !== JSON.stringify(generatedRatios) || selectedResolution !== generatedResolution) && hasResults ? (
                 <>
                   <Layers className="w-5 h-5" />
-                  使用新设置重新生成
+                  更新视觉重新生成
                 </>
               ) : allGenerated ? (
                 <>
-                  <Layers className="w-5 h-5" />
-                  生成完成
+                  <ImageIcon className="w-5 h-5" />
+                  生成已完成
                 </>
               ) : (
                 <>
                   <Layers className="w-5 h-5" />
-                  开始生成
+                  生成爆炸图
                 </>
               )}
             </button>
@@ -719,41 +735,44 @@ ABSOLUTE RULE - NO TEXT:
           </div>
 
           {/* Right Column: Result */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-200 flex flex-col lg:col-span-8 xl:col-span-9 min-h-0">
-            <div className="flex items-center justify-between mb-4 shrink-0">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-medium">生成结果</h2>
+          <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-brand-sand/50 border border-neutral-200/50 flex flex-col lg:col-span-8 xl:col-span-9 min-h-0">
+            <div className="flex items-center justify-between mb-8 shrink-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <h2 className="text-2xl font-bold font-display text-neutral-900">生成爆炸图结果</h2>
                 {hasResults && (
-                  <span className="text-sm text-neutral-700 bg-neutral-100 px-3 py-1 rounded-full flex items-center gap-1.5 border border-neutral-200">
-                    <Tag className="w-3.5 h-3.5" />
-                    提示：点击图片右下角的标签按钮，即可添加或修改文字标注
+                  <span className="text-[10px] font-bold text-brand-sage bg-brand-sand border border-brand-sage/20 px-4 py-1.5 rounded-full flex items-center gap-2 uppercase tracking-widest shadow-sm">
+                    <Tag className="w-3 h-3" />
+                    Interactive: 点击图片右下角标签可编辑
                   </span>
                 )}
               </div>
               {hasResults && (
                 <button 
                   onClick={downloadAll}
-                  className="text-sm font-medium text-black hover:text-neutral-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-neutral-50 transition-colors"
+                  className="text-sm font-bold text-brand-sage hover:text-brand-sage/80 flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-sand/50 hover:bg-brand-sand transition-all shadow-sm"
                 >
                   <Download className="w-4 h-4" />
-                  全部下载
+                  保存所有创意
                 </button>
               )}
             </div>
             
-            <div className={`flex-1 bg-white rounded-xl border border-neutral-200 overflow-hidden relative flex flex-col min-h-0 ${selectedImages.length > 0 ? 'p-6' : 'items-center justify-center'}`}>
+            <div className={`flex-1 bg-brand-sand/50 rounded-3xl border border-neutral-200 relative flex flex-col min-h-0 ${selectedImages.length > 0 ? 'p-8' : 'items-center justify-center'}`}>
               {selectedImages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-neutral-400 p-8 text-center h-full">
-                  <ImageIcon className="w-12 h-12 mb-3 opacity-50" />
-                  <p>生成的爆炸图将显示在这里</p>
+                <div className="flex flex-col items-center justify-center text-neutral-300 p-12 text-center h-full">
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-6">
+                    <Layers className="w-16 h-16 opacity-30" />
+                  </div>
+                  <h3 className="text-xl font-bold font-display text-neutral-800 mb-2">等候您的菜品</h3>
+                  <p className="max-w-xs text-neutral-400">我们将为您拆解美食精髓，打造极具冲击力的视觉效果</p>
                 </div>
               ) : (
-                <div className="flex-1 overflow-y-auto pr-2">
-                  <div className="flex flex-col gap-10">
+                <div className="flex-1 overflow-y-auto pr-4 scrollbar-custom">
+                  <div className="flex flex-col gap-16">
                     {selectedImages.map((_, i) => (
                       <div key={i} className="flex flex-col gap-6">
                         
-                        <div className={`grid grid-cols-1 ${selectedRatios.length > 1 ? 'xl:grid-cols-2' : ''} gap-x-8 gap-y-10`}>
+                        <div className={`grid grid-cols-1 ${selectedRatios.length > 1 ? 'xl:grid-cols-2' : ''} gap-x-12 gap-y-16`}>
                           {selectedRatios.map(ratio => {
                             const ratioInfo = RATIOS.find(r => r.id === ratio);
                             const title = `${ratioInfo?.name || ratio}: ${ratioInfo?.desc || ''}`;
@@ -766,19 +785,19 @@ ABSOLUTE RULE - NO TEXT:
 
                             return (
                               <div key={ratio} className="flex flex-col w-full items-center">
-                                <div className="text-sm font-medium text-neutral-800 mb-3 border-b border-neutral-200 pb-2 w-full">
+                                <div className="text-[10px] font-bold text-neutral-400 mb-4 px-4 py-1.5 bg-white rounded-full shadow-sm border border-neutral-100 uppercase tracking-[0.2em] font-display w-fit">
                                   {title}
                                 </div>
                                 <div 
                                   style={aspectRatioStyle} 
-                                  className="relative bg-[#f8f9fa] rounded-xl border border-neutral-200 overflow-hidden flex flex-col items-center justify-center group h-[55vh] max-h-[600px] max-w-full @container"
+                                  className="relative bg-white rounded-[2rem] border border-neutral-200/50 shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group h-[60vh] max-h-[700px] max-w-full @container"
                                 >
                                   {url ? (
                                     <>
                                       <img 
                                         src={url} 
                                         alt={`Result ${i} ${ratio}`} 
-                                        className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform duration-300" 
+                                        className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-700 ease-out" 
                                         onClick={() => setZoomedImage(url)}
                                       />
                                       {dishNamesData[`${i}-${ratio}`] && (
@@ -819,56 +838,60 @@ ABSOLUTE RULE - NO TEXT:
                                           </div>
                                         </div>
                                       ))}
-                                      <button 
-                                        onClick={() => {
-                                          if (detectingLayers[`${i}-${ratio}`]) return;
-                                          const existingLayers = layersData[`${i}-${ratio}`];
-                                          const existingDishName = dishNamesData[`${i}-${ratio}`];
-                                          const existingDishNameY = dishNameYData[`${i}-${ratio}`];
-                                          const existingDishNameSize = dishNameSizeData[`${i}-${ratio}`];
-                                          const existingLayerNameSize = layerNameSizeData[`${i}-${ratio}`];
-                                          const defaultLayers = defaultLayersData[`${i}-${ratio}`] || [];
-                                          const defaultDishName = defaultDishNamesData[`${i}-${ratio}`] || '';
-                                          const defaultDishNameY = defaultDishNameYData[`${i}-${ratio}`] ?? 5;
-                                          
-                                          setEditingLabel({ 
-                                            index: i, 
-                                            ratio, 
-                                            url, 
-                                            layers: existingLayers ? [...existingLayers] : [...defaultLayers],
-                                            dishName: existingDishName !== undefined ? existingDishName : defaultDishName,
-                                            dishNameY: existingDishNameY !== undefined ? existingDishNameY : defaultDishNameY,
-                                            dishNameSize: existingDishNameSize !== undefined ? existingDishNameSize : 100,
-                                            layerNameSize: existingLayerNameSize !== undefined ? existingLayerNameSize : 100
-                                          });
-                                        }}
-                                        disabled={detectingLayers[`${i}-${ratio}`]}
-                                        className={`absolute bottom-2 right-12 bg-white/90 p-2 rounded-lg shadow-sm transition-colors ${
-                                          detectingLayers[`${i}-${ratio}`] 
-                                            ? 'text-neutral-400 opacity-100 cursor-not-allowed' 
-                                            : 'text-neutral-900 hover:bg-neutral-100 opacity-0 group-hover:opacity-100'
-                                        }`}
-                                        title={detectingLayers[`${i}-${ratio}`] ? "正在智能识别图层..." : "编辑标注"}
-                                      >
-                                        {detectingLayers[`${i}-${ratio}`] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-                                      </button>
-                                      <button 
-                                        onClick={() => downloadImageWithLabels(url, i, ratio)}
-                                        className="absolute bottom-2 right-2 bg-white/90 text-neutral-900 p-2 rounded-lg shadow-sm hover:bg-neutral-100 transition-colors opacity-0 group-hover:opacity-100"
-                                        title="下载图片"
-                                      >
-                                        <Download className="w-4 h-4" />
-                                      </button>
+                                      <div className="absolute bottom-6 right-6 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                                        <button 
+                                          onClick={() => {
+                                            if (detectingLayers[`${i}-${ratio}`]) return;
+                                            const existingLayers = layersData[`${i}-${ratio}`];
+                                            const existingDishName = dishNamesData[`${i}-${ratio}`];
+                                            const existingDishNameY = dishNameYData[`${i}-${ratio}`];
+                                            const existingDishNameSize = dishNameSizeData[`${i}-${ratio}`];
+                                            const existingLayerNameSize = layerNameSizeData[`${i}-${ratio}`];
+                                            const defaultLayers = defaultLayersData[`${i}-${ratio}`] || [];
+                                            const defaultDishName = defaultDishNamesData[`${i}-${ratio}`] || '';
+                                            const defaultDishNameY = defaultDishNameYData[`${i}-${ratio}`] ?? 5;
+                                            
+                                            setEditingLabel({ 
+                                              index: i, 
+                                              ratio, 
+                                              url, 
+                                              layers: existingLayers ? [...existingLayers] : [...defaultLayers],
+                                              dishName: existingDishName !== undefined ? existingDishName : defaultDishName,
+                                              dishNameY: existingDishNameY !== undefined ? existingDishNameY : defaultDishNameY,
+                                              dishNameSize: existingDishNameSize !== undefined ? existingDishNameSize : 100,
+                                              layerNameSize: existingLayerNameSize !== undefined ? existingLayerNameSize : 100
+                                            });
+                                          }}
+                                          disabled={detectingLayers[`${i}-${ratio}`]}
+                                          className="bg-white/95 text-brand-sage p-3.5 rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all hover:scale-110 active:scale-95"
+                                          title={detectingLayers[`${i}-${ratio}`] ? "智能识别中..." : "编辑标注"}
+                                        >
+                                          {detectingLayers[`${i}-${ratio}`] ? <Loader2 className="w-5 h-5 animate-spin" /> : <Tag className="w-5 h-5" />}
+                                        </button>
+                                        <button 
+                                          onClick={() => downloadImageWithLabels(url, i, ratio)}
+                                          className="bg-white/95 text-brand-sage p-3.5 rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all hover:scale-110 active:scale-95"
+                                          title="下载图片"
+                                        >
+                                          <Download className="w-5 h-5" />
+                                        </button>
+                                      </div>
+                                      <div className="absolute top-6 left-6 bg-brand-sage/10 backdrop-blur-md border border-brand-sage/20 text-brand-sage px-3 py-1 rounded-lg text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+                                        Architected
+                                      </div>
                                     </>
                                   ) : isGeneratingThis ? (
-                                    <div className="flex flex-col items-center justify-center text-neutral-500">
-                                      <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                                      <span className="text-xs font-medium">生成中...</span>
+                                    <div className="flex flex-col items-center justify-center">
+                                      <div className="relative">
+                                        <Loader2 className="w-12 h-12 text-brand-sage animate-spin mb-4" />
+                                        <div className="absolute inset-0 blur-xl bg-brand-sage/20 rounded-full animate-pulse"></div>
+                                      </div>
+                                      <span className="text-xs font-bold text-brand-sage tracking-widest uppercase animate-pulse font-display">Simulating Explosion...</span>
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col items-center justify-center text-neutral-400">
-                                      <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
-                                      <span className="text-sm opacity-60">等待生成</span>
+                                    <div className="flex flex-col items-center justify-center text-neutral-200">
+                                      <Layers className="w-12 h-12 mb-4 opacity-20" />
+                                      <span className="text-xs font-bold tracking-widest uppercase font-display opacity-30">Painting soon</span>
                                     </div>
                                   )}
                                 </div>
@@ -899,16 +922,21 @@ ABSOLUTE RULE - NO TEXT:
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-brand-paper rounded-[2.5rem] shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-neutral-200/50"
             >
-              <div className="p-4 border-b border-neutral-200 flex justify-between items-center bg-neutral-50">
-                <h3 className="text-lg font-semibold text-neutral-800">编辑图层标注</h3>
-                <button onClick={() => setEditingLabel(null)} className="p-1.5 text-neutral-500 hover:bg-neutral-200 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+              <div className="px-8 py-6 border-b border-neutral-200/60 flex justify-between items-center bg-brand-sand">
+                <div className="flex items-center gap-3">
+                  <div className="bg-brand-sage p-2 rounded-lg text-white">
+                    <Tag className="w-4 h-4"/>
+                  </div>
+                  <h3 className="text-xl font-bold font-display text-neutral-900">精密标注编辑器</h3>
+                </div>
+                <button onClick={() => setEditingLabel(null)} className="p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 rounded-xl transition-all"><X className="w-6 h-6"/></button>
               </div>
-              <div className="p-6 overflow-y-auto flex flex-col md:flex-row gap-8 bg-white">
-                 <div className="w-full md:w-1/2 flex items-center justify-center bg-neutral-100 rounded-xl border border-neutral-200 overflow-hidden p-2">
+              <div className="p-10 overflow-y-auto flex flex-col xl:flex-row gap-12 bg-brand-paper">
+                 <div className="w-full xl:w-3/5 flex items-center justify-center bg-brand-sand rounded-[2rem] border border-neutral-200/60 shadow-inner p-6">
                     <div 
-                      className="relative w-full max-h-[60vh] @container flex items-center justify-center"
+                      className="relative w-full max-h-[65vh] @container flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden"
                       style={{ aspectRatio: editingLabel.ratio.replace(':', '/') }}
                     >
                       <img src={editingLabel.url} className="absolute inset-0 w-full h-full object-contain" />
@@ -952,105 +980,119 @@ ABSOLUTE RULE - NO TEXT:
                       ))}
                     </div>
                  </div>
-                 <div className="w-full md:w-1/2 flex flex-col min-h-0">
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                      <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 space-y-1">
-                        <label className="text-xs font-medium text-neutral-500">菜品名称 (顶部居中显示)</label>
-                        <div className="flex gap-3">
+                 <div className="w-full xl:w-2/5 flex flex-col min-h-0">
+                    <div className="flex-1 overflow-y-auto pr-4 space-y-8 scrollbar-hide">
+                      <div className="bg-brand-sand border border-neutral-200/60 p-6 rounded-[1.5rem] shadow-sm space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-1.5 h-1.5 bg-brand-sage rounded-full"></div>
+                          <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest font-display">Dish Title Identity</label>
+                        </div>
+                        <div className="space-y-4">
                           <input 
                             type="text" 
                             value={editingLabel.dishName}
                             onChange={(e) => setEditingLabel({ ...editingLabel, dishName: e.target.value })}
-                            placeholder="例如：招牌牛肉面"
-                            className="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
+                            placeholder="请输入菜品大名"
+                            className="w-full border-2 border-neutral-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-brand-sage/10 focus:border-brand-sage/50 outline-none bg-white transition-all font-bold"
                           />
-                          <div className="w-20 space-y-1">
-                            <label className="text-xs font-medium text-neutral-500">位置 (%)</label>
-                            <input 
-                              type="number" 
-                              min="0" max="100"
-                              value={editingLabel.dishNameY}
-                              onChange={(e) => setEditingLabel({ ...editingLabel, dishNameY: Number(e.target.value) })}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
-                            />
-                          </div>
-                          <div className="w-20 space-y-1">
-                            <label className="text-xs font-medium text-neutral-500">大小 (%)</label>
-                            <input 
-                              type="number" 
-                              min="10" max="300"
-                              value={editingLabel.dishNameSize}
-                              onChange={(e) => setEditingLabel({ ...editingLabel, dishNameSize: Number(e.target.value) })}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
-                            />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-tighter">Vertical Pos %</label>
+                              <input 
+                                type="number" 
+                                min="0" max="100"
+                                value={editingLabel.dishNameY}
+                                onChange={(e) => setEditingLabel({ ...editingLabel, dishNameY: Number(e.target.value) })}
+                                className="w-full border-2 border-neutral-100 rounded-xl px-4 py-2 text-sm focus:border-brand-sage/50 outline-none bg-white font-medium"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-tighter">Font Zoom %</label>
+                              <input 
+                                type="number" 
+                                min="10" max="300"
+                                value={editingLabel.dishNameSize}
+                                onChange={(e) => setEditingLabel({ ...editingLabel, dishNameSize: Number(e.target.value) })}
+                                className="w-full border-2 border-neutral-100 rounded-xl px-4 py-2 text-sm focus:border-brand-sage/50 outline-none bg-white font-medium"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm text-neutral-500">您可以修改识别出的图层名称，或调整其垂直位置（0-100%）。</div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs font-medium text-neutral-500">图层文字大小 (%)</label>
-                          <input 
-                            type="number" 
-                            min="10" max="300"
-                            value={editingLabel.layerNameSize}
-                            onChange={(e) => setEditingLabel({ ...editingLabel, layerNameSize: Number(e.target.value) })}
-                            className="w-20 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
-                          />
-                        </div>
-                      </div>
-                      {editingLabel.layers.map((layer, idx) => (
-                        <div key={idx} className="flex gap-3 items-start bg-neutral-50 p-3 rounded-xl border border-neutral-100">
-                          <div className="flex-1 space-y-1">
-                            <label className="text-xs font-medium text-neutral-500">名称</label>
-                            <input 
-                              type="text" 
-                              value={layer.name}
-                              onChange={(e) => {
-                                const newLayers = [...editingLabel.layers];
-                                newLayers[idx].name = e.target.value;
-                                setEditingLabel({ ...editingLabel, layers: newLayers });
-                              }}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
-                            />
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-neutral-200/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-brand-sage rounded-full"></div>
+                            <h4 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest font-display">Ingredient Layers</h4>
                           </div>
-                          <div className="w-20 space-y-1">
-                            <label className="text-xs font-medium text-neutral-500">位置 (%)</label>
+                          <div className="flex items-center gap-3">
+                            <label className="text-[10px] font-bold text-neutral-400 uppercase">Text Size %</label>
                             <input 
                               type="number" 
-                              min="0" max="100"
-                              value={layer.y}
-                              onChange={(e) => {
-                                const newLayers = [...editingLabel.layers];
-                                newLayers[idx].y = Number(e.target.value);
-                                setEditingLabel({ ...editingLabel, layers: newLayers });
-                              }}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
+                              min="10" max="300"
+                              value={editingLabel.layerNameSize}
+                              onChange={(e) => setEditingLabel({ ...editingLabel, layerNameSize: Number(e.target.value) })}
+                              className="w-16 border-2 border-neutral-100 rounded-lg px-2 py-1 text-xs outline-none bg-white font-bold"
                             />
                           </div>
-                          <button 
-                            onClick={() => {
-                              const newLayers = editingLabel.layers.filter((_, i) => i !== idx);
-                              setEditingLabel({ ...editingLabel, layers: newLayers });
-                            }}
-                            className="mt-6 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="删除"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
                         </div>
-                      ))}
-                      <button onClick={() => {
-                         setEditingLabel({ ...editingLabel, layers: [...editingLabel.layers, { y: 50, name: '新图层' }]});
-                      }} className="w-full py-3 border-2 border-dashed border-neutral-300 text-neutral-600 text-sm font-medium rounded-xl hover:border-neutral-400 hover:text-black hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2">
-                        <Plus className="w-4 h-4" /> 添加图层标注
-                      </button>
+
+                        <div className="space-y-3">
+                          {editingLabel.layers.map((layer, idx) => (
+                            <div key={idx} className="group relative flex gap-3 items-end bg-white p-5 rounded-2xl border border-neutral-100 shadow-sm transition-all hover:border-brand-sage/20 hover:shadow-md">
+                              <div className="flex-1 space-y-1.5">
+                                <label className="text-[10px] font-bold text-neutral-300 uppercase tracking-tighter">Label Text</label>
+                                <input 
+                                  type="text" 
+                                  value={layer.name}
+                                  onChange={(e) => {
+                                    const newLayers = [...editingLabel.layers];
+                                    newLayers[idx].name = e.target.value;
+                                    setEditingLabel({ ...editingLabel, layers: newLayers });
+                                  }}
+                                  className="w-full border-b-2 border-neutral-50 rounded-none px-0 py-1 text-sm focus:border-brand-sage/50 outline-none bg-white transition-all font-medium"
+                                />
+                              </div>
+                              <div className="w-16 space-y-1.5">
+                                <label className="text-[10px] font-bold text-neutral-300 uppercase tracking-tighter">V-Pos %</label>
+                                <input 
+                                  type="number" 
+                                  min="0" max="100"
+                                  value={layer.y}
+                                  onChange={(e) => {
+                                    const newLayers = [...editingLabel.layers];
+                                    newLayers[idx].y = Number(e.target.value);
+                                    setEditingLabel({ ...editingLabel, layers: newLayers });
+                                  }}
+                                  className="w-full border-b-2 border-neutral-50 rounded-none px-0 py-1 text-sm focus:border-brand-sage/50 outline-none bg-white transition-all text-center font-medium"
+                                />
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  const newLayers = editingLabel.layers.filter((_, i) => i !== idx);
+                                  setEditingLabel({ ...editingLabel, layers: newLayers });
+                                }}
+                                className="p-2 text-neutral-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                title="Remove"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button onClick={() => {
+                           setEditingLabel({ ...editingLabel, layers: [...editingLabel.layers, { y: 50, name: '新增食材' }]});
+                        }} className="w-full py-4 border-2 border-dashed border-neutral-200 text-neutral-400 text-xs font-bold rounded-2xl hover:border-brand-sage/50 hover:text-brand-sage hover:bg-brand-sand transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+                          <Plus className="w-4 h-4" /> Add Component Layer
+                        </button>
+                      </div>
                     </div>
                  </div>
               </div>
-              <div className="p-4 border-t border-neutral-200 flex justify-end gap-3 bg-neutral-50">
-                <button onClick={() => setEditingLabel(null)} className="px-5 py-2.5 text-neutral-600 hover:bg-neutral-200 rounded-xl font-medium transition-colors">跳过 / 取消</button>
+              <div className="px-10 py-8 border-t border-neutral-200/60 flex justify-end gap-4 bg-brand-sand">
+                <button onClick={() => setEditingLabel(null)} className="px-8 py-3.5 text-neutral-500 hover:text-neutral-900 font-bold text-sm transition-all">DISCARD</button>
                 <button 
                   onClick={() => {
                     setLayersData(prev => ({
@@ -1075,9 +1117,9 @@ ABSOLUTE RULE - NO TEXT:
                     }));
                     setEditingLabel(null);
                   }} 
-                  className="px-5 py-2.5 bg-black text-white rounded-xl font-medium hover:bg-neutral-800 transition-colors shadow-sm"
+                  className="px-10 py-3.5 bg-brand-sage text-white rounded-[1.25rem] font-bold text-sm hover:translate-y-[-2px] hover:shadow-xl hover:shadow-brand-sage/30 active:scale-[0.98] transition-all shadow-lg shadow-brand-sage/20 uppercase tracking-widest font-display"
                 >
-                  确认并应用
+                  Confirm & Apply
                 </button>
               </div>
             </motion.div>

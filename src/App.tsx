@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Beautify from './pages/Beautify';
 import Explosion from './pages/Explosion';
 import { Wand2, Layers, Coins } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export interface SaasData {
   userId: string;
@@ -92,33 +93,37 @@ export default function App() {
   }, [saasData]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-neutral-50 relative">
+    <div className="flex h-screen overflow-hidden bg-brand-paper relative">
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-neutral-200 flex flex-col relative z-10">
-        <div className="h-16 flex items-center px-6 border-b border-neutral-200">
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">AI 美食工坊</h1>
+      <div className="w-64 bg-brand-sand border-r border-neutral-200/60 flex flex-col relative z-10">
+        <div className="h-20 flex items-center px-8 border-b border-neutral-200/60">
+          <h1 className="text-2xl font-bold text-neutral-900 tracking-tight font-display">AI 美食工坊</h1>
         </div>
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-6 space-y-3">
           <button
             onClick={() => setActiveTab('beautify')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+            className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl transition-all duration-300 ${
               activeTab === 'beautify'
-                ? 'bg-neutral-900 text-white font-medium'
-                : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
+                ? 'bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-medium'
+                : 'text-neutral-500 hover:bg-white hover:text-neutral-900 hover:shadow-sm'
             }`}
           >
-            <Wand2 className="w-5 h-5" />
+            <div className={`p-1.5 rounded-lg ${activeTab === 'beautify' ? 'bg-white/20' : 'bg-neutral-100'}`}>
+              <Wand2 className="w-4 h-4" />
+            </div>
             菜品一键美化
           </button>
           <button
             onClick={() => setActiveTab('explosion')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+            className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl transition-all duration-300 ${
               activeTab === 'explosion'
-                ? 'bg-neutral-900 text-white font-medium'
-                : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
+                ? 'bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-medium'
+                : 'text-neutral-500 hover:bg-white hover:text-neutral-900 hover:shadow-sm'
             }`}
           >
-            <Layers className="w-5 h-5" />
+            <div className={`p-1.5 rounded-lg ${activeTab === 'explosion' ? 'bg-white/20' : 'bg-neutral-100'}`}>
+              <Layers className="w-4 h-4" />
+            </div>
             美食爆炸图
           </button>
         </nav>
@@ -126,31 +131,51 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden relative">
-        <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'beautify' ? 'block' : 'hidden'}`}>
-           <Beautify saasData={saasData} />
-        </div>
-        <div className={`absolute inset-0 overflow-y-auto ${activeTab === 'explosion' ? 'block' : 'hidden'}`}>
-           <Explosion saasData={saasData} />
-        </div>
+        <AnimatePresence mode="wait">
+          {activeTab === 'beautify' && (
+            <motion.div
+              key="beautify"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="absolute inset-0 overflow-y-auto"
+            >
+              <Beautify saasData={saasData} />
+            </motion.div>
+          )}
+          {activeTab === 'explosion' && (
+            <motion.div
+              key="explosion"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="absolute inset-0 overflow-y-auto"
+            >
+              <Explosion saasData={saasData} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Top Right Corner - Points Display (Ensured on top) */}
         {saasData && (
-          <div className="absolute top-4 right-4 z-[9999] pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-md shadow-lg border border-orange-100 pl-3 pr-4 py-2 rounded-full flex items-center gap-3 transition-all hover:scale-105 hover:shadow-xl group">
+          <div className="absolute top-6 right-8 z-[9999] pointer-events-auto">
+            <div className="bg-white/95 backdrop-blur-md shadow-xl shadow-neutral-200/50 border border-brand-amber/10 pl-3 pr-5 py-2.5 rounded-2xl flex items-center gap-4 transition-all hover:scale-105 hover:shadow-2xl group">
               <div 
-                className={`p-1.5 rounded-full transition-colors ${points !== null ? 'bg-orange-100 text-orange-600' : 'bg-neutral-100 text-neutral-400'}`}
+                className={`p-2 rounded-xl transition-all duration-500 ${points !== null ? 'bg-brand-amber/10 text-brand-amber shadow-inner' : 'bg-neutral-100 text-neutral-400'}`}
                 onClick={() => saasData && fetchPoints(saasData.userId, saasData.toolId)}
                 title="点击刷新积分"
               >
-                <Coins className={`w-4 h-4 ${points !== null && points > 0 ? 'animate-bounce' : ''} group-hover:rotate-12 transition-transform`} />
+                <Coins className={`w-5 h-5 ${points !== null && points > 0 ? 'animate-pulse' : ''} group-hover:rotate-12 transition-transform`} />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] text-neutral-400 font-medium leading-none mb-0.5 uppercase tracking-wider">Balance</span>
-                <span className="text-sm font-bold text-neutral-800 leading-none">
+                <span className="text-[10px] text-neutral-400 font-bold leading-none mb-1 uppercase tracking-[0.15em] font-display">Balance</span>
+                <span className="text-base font-bold text-neutral-900 leading-none">
                   {points !== null ? (
-                    <span className="text-orange-600">{points}</span>
+                    <span className="text-brand-amber">{points}</span>
                   ) : (
-                    <span className="text-neutral-300 animate-pulse">---</span>
+                    <span className="text-neutral-300 animate-pulse italic font-medium">pending</span>
                   )}
                 </span>
               </div>
