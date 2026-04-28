@@ -63,12 +63,15 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
 
     while (retries > 0) {
       try {
-        const res = await fetch("/api/gemini/detect-layers", {
+        const res = await fetch("/api/gemini", {
            method: "POST",
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({
-              base64Data,
-              prompt
+              model: "gemini-2.5-flash",
+              payload: {
+                base64Data,
+                prompt
+              }
            })
         });
         if (!res.ok) {
@@ -181,6 +184,13 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
         });
         const verifyResult = await verifyRes.json();
+        
+        // Ensure points always reflect latest verified amount
+        const verifyPts = verifyResult?.currentIntegral ?? verifyResult?.points ?? verifyResult?.balance ?? verifyResult?.remain ?? verifyResult?.data?.balance ?? verifyResult?.data?.points ?? verifyResult?.data?.currentIntegral;
+        if (verifyPts !== undefined && verifyPts !== null) {
+          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: verifyPts } }));
+        }
+
         if (!verifyResult.success && !verifyResult.valid) {
           throw new Error(verifyResult.message || "积分不足");
         }
@@ -294,15 +304,18 @@ ABSOLUTE RULE - NO TEXT:
           
           while (retries > 0) {
             try {
-              const res = await fetch("/api/gemini/generate-image", {
+              const res = await fetch("/api/gemini", {
                  method: "POST",
                  headers: { "Content-Type": "application/json" },
                  body: JSON.stringify({
-                    base64Data,
-                    mimeType: selectedImages[i].type,
-                    prompt,
-                    ratio,
-                    resolution: selectedResolution
+                    model: 'gemini-3.1-flash-image-preview',
+                    payload: {
+                      base64Data,
+                      mimeType: selectedImages[i].type,
+                      prompt,
+                      ratio,
+                      resolution: selectedResolution
+                    }
                  })
               });
               if (!res.ok) {
@@ -355,11 +368,14 @@ ABSOLUTE RULE - NO TEXT:
 
       if (saasData && newResults.some(res => Object.values(res).some(url => url !== null))) {
         try {
-          await fetch('/api/tool/consume', {
+          const consumeRes = await fetch('/api/tool/consume', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
           });
+          const consumeData = await consumeRes.json();
+          const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
+          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
         } catch (e) {
           console.error("Consume error", e);
         }
@@ -426,9 +442,9 @@ ABSOLUTE RULE - NO TEXT:
       const titleX = img.width / 2;
       
       const titleGradient = ctx.createLinearGradient(0, titleY, 0, titleY + titleFontSize);
-      titleGradient.addColorStop(0, '#FFF7D6');
-      titleGradient.addColorStop(0.5, '#FFD700');
-      titleGradient.addColorStop(1, '#B8860B');
+      titleGradient.addColorStop(0, '#FFFFFF');
+      titleGradient.addColorStop(0.5, '#E5E5E5');
+      titleGradient.addColorStop(1, '#A3A3A3');
       
       ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
       ctx.shadowBlur = 15;
@@ -457,9 +473,9 @@ ABSOLUTE RULE - NO TEXT:
       
       // Golden gradient for text
       const gradient = ctx.createLinearGradient(0, yPos - fontSize, 0, yPos + fontSize);
-      gradient.addColorStop(0, '#FFF7D6');
-      gradient.addColorStop(0.4, '#FFD700');
-      gradient.addColorStop(1, '#B8860B');
+      gradient.addColorStop(0, '#FFFFFF');
+      gradient.addColorStop(0.4, '#E5E5E5');
+      gradient.addColorStop(1, '#A3A3A3');
 
       // Shadow for readability and "art" feel
       ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
@@ -485,9 +501,9 @@ ABSOLUTE RULE - NO TEXT:
         
         // Artistic golden brush gradient
         const grad = ctx.createLinearGradient(lineStartX, yPos, lineEndX, yPos);
-        grad.addColorStop(0, 'rgba(218, 165, 32, 0)');
-        grad.addColorStop(0.4, 'rgba(218, 165, 32, 0.8)');
-        grad.addColorStop(1, 'rgba(255, 215, 0, 1)');
+        grad.addColorStop(0, 'rgba(115, 115, 115, 0)');
+        grad.addColorStop(0.4, 'rgba(163, 163, 163, 0.8)');
+        grad.addColorStop(1, 'rgba(212, 212, 212, 1)');
         
         ctx.fillStyle = grad;
         const lineHeight = Math.max(2, img.width * 0.003);
@@ -499,12 +515,12 @@ ABSOLUTE RULE - NO TEXT:
         ctx.translate(lineEndX, yPos);
         ctx.rotate(Math.PI / 4);
         
-        ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
         ctx.shadowBlur = Math.max(10, img.width * 0.01);
         
         const diamondGrad = ctx.createLinearGradient(-diamondSize/2, -diamondSize/2, diamondSize/2, diamondSize/2);
         diamondGrad.addColorStop(0, '#FFFFFF');
-        diamondGrad.addColorStop(1, '#FFD700');
+        diamondGrad.addColorStop(1, '#D4D4D4');
         
         ctx.fillStyle = diamondGrad;
         ctx.fillRect(-diamondSize/2, -diamondSize/2, diamondSize, diamondSize);
@@ -529,7 +545,7 @@ ABSOLUTE RULE - NO TEXT:
   const downloadAll = () => {
     resultImages.forEach((res, index) => {
       Object.entries(res).forEach(([ratio, url]) => {
-        if (url) downloadImageWithLabels(url, index, ratio);
+        if (url) downloadImageWithLabels(url as string, index, ratio);
       });
     });
   };
@@ -538,12 +554,12 @@ ABSOLUTE RULE - NO TEXT:
   const hasResults = resultImages.some(res => Object.values(res).some(url => url !== null));
 
   return (
-    <div className="h-full flex flex-col bg-neutral-50 text-neutral-900 font-sans selection:bg-orange-200">
+    <div className="h-full flex flex-col bg-neutral-50 text-neutral-900 font-sans selection:bg-neutral-200">
       <header className="bg-white border-b border-neutral-200 shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="bg-orange-500 p-2 rounded-lg text-white">
+              <div className="bg-black p-2 rounded-lg text-white">
                 <Layers className="w-5 h-5" />
               </div>
               <h1 className="text-xl font-semibold tracking-tight">美食爆炸图</h1>
@@ -564,8 +580,8 @@ ABSOLUTE RULE - NO TEXT:
               </div>
               
               <div 
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer mb-4
-                  ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-300 hover:border-orange-400 hover:bg-orange-50/30'}`}
+                className={`border-2 border-dashed rounded-xl overflow-hidden transition-colors cursor-pointer mb-4
+                  ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50'}`}
                 onClick={() => !isGenerating && fileInputRef.current?.click()}
                 onDrop={!isGenerating ? handleDrop : undefined}
                 onDragOver={handleDragOver}
@@ -577,32 +593,43 @@ ABSOLUTE RULE - NO TEXT:
                   accept="image/*" 
                   className="hidden" 
                 />
-                <div className="flex flex-col items-center justify-center py-4">
-                  <div className="bg-orange-50 p-4 rounded-full text-orange-500 mb-4">
-                    <Plus className="w-8 h-8" />
+                {previewUrls[0] ? (
+                  <div className="relative w-full aspect-[4/3] group cursor-default">
+                    <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-neutral-100" />
+                    <div 
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      onClick={() => !isGenerating && fileInputRef.current?.click()}
+                    >
+                      <div className="bg-white/20 backdrop-blur-sm border border-white/30 text-white px-4 py-2 rounded-full text-sm font-medium">
+                        点击更换图片
+                      </div>
+                    </div>
+                    {!isGenerating && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(0);
+                        }}
+                        className="absolute top-2 right-2 z-10 bg-black/50 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  <p className="text-neutral-700 font-medium mb-1">点击上传或拖拽图片到此处</p>
-                  <p className="text-neutral-500 text-sm">每次仅支持 1 张</p>
-                </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <div className="flex flex-col items-center justify-center py-4">
+                      <div className="bg-neutral-100 p-4 rounded-full text-neutral-900 mb-4">
+                        <Plus className="w-8 h-8" />
+                      </div>
+                      <p className="text-neutral-700 font-medium mb-1">点击上传或拖拽图片到此处</p>
+                      <p className="text-neutral-500 text-sm">每次仅支持 1 张</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {previewUrls.length > 0 && (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {previewUrls.map((url, i) => (
-                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-neutral-200 group">
-                      <img src={url} alt={`Preview ${i}`} className="w-full h-full object-cover" />
-                      {!isGenerating && (
-                        <button 
-                          onClick={() => removeImage(i)}
-                          className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Removing separate preview layout */}
             </section>
 
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-200">
@@ -623,8 +650,8 @@ ABSOLUTE RULE - NO TEXT:
                       disabled={isGenerating}
                       className={`text-center p-3 rounded-xl border transition-all ${
                         isSelected
-                          ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500 text-orange-700' 
-                          : 'border-neutral-200 hover:border-orange-300 hover:bg-neutral-50 text-neutral-700'
+                          ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
+                          : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
                       } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className="font-medium">{ratio.name}</div>
@@ -645,8 +672,8 @@ ABSOLUTE RULE - NO TEXT:
                     disabled={isGenerating}
                     className={`text-center p-3 rounded-xl border transition-all ${
                       selectedResolution === res.id 
-                        ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500 text-orange-700' 
-                        : 'border-neutral-200 hover:border-orange-300 hover:bg-neutral-50 text-neutral-700'
+                        ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
+                        : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="font-medium">{res.name}</div>
@@ -659,7 +686,7 @@ ABSOLUTE RULE - NO TEXT:
             <button
               onClick={generateImages}
               disabled={selectedImages.length === 0 || selectedRatios.length === 0 || isGenerating || (allGenerated && JSON.stringify(selectedRatios) === JSON.stringify(generatedRatios) && selectedResolution === generatedResolution)}
-              className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="w-full bg-black hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               {isGenerating ? (
                 <>
@@ -697,7 +724,7 @@ ABSOLUTE RULE - NO TEXT:
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-medium">生成结果</h2>
                 {hasResults && (
-                  <span className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full flex items-center gap-1.5 border border-orange-100">
+                  <span className="text-sm text-neutral-700 bg-neutral-100 px-3 py-1 rounded-full flex items-center gap-1.5 border border-neutral-200">
                     <Tag className="w-3.5 h-3.5" />
                     提示：点击图片右下角的标签按钮，即可添加或修改文字标注
                   </span>
@@ -706,7 +733,7 @@ ABSOLUTE RULE - NO TEXT:
               {hasResults && (
                 <button 
                   onClick={downloadAll}
-                  className="text-sm font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-colors"
+                  className="text-sm font-medium text-black hover:text-neutral-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-neutral-50 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   全部下载
@@ -761,7 +788,7 @@ ABSOLUTE RULE - NO TEXT:
                                             top: `${dishNameYData[`${i}-${ratio}`] ?? defaultDishNameYData[`${i}-${ratio}`] ?? 5}%`,
                                             fontSize: `${11 * ((dishNameSizeData[`${i}-${ratio}`] ?? 100) / 100)}cqw`,
                                             fontFamily: '"龚帆怒放体", "Gongfan Nufang", "Zhi Mang Xing", "STXingkai", "华文行楷", cursive',
-                                            background: 'linear-gradient(to bottom, #FFF7D6, #FFD700, #B8860B)',
+                                            background: 'linear-gradient(to bottom, #FFFFFF, #E5E5E5, #A3A3A3)',
                                             WebkitBackgroundClip: 'text',
                                             WebkitTextFillColor: 'transparent',
                                             filter: 'drop-shadow(0.4cqw 0.4cqw 0.8cqw rgba(0,0,0,0.9))'
@@ -777,7 +804,7 @@ ABSOLUTE RULE - NO TEXT:
                                             style={{
                                               fontSize: `${4.5 * ((layerNameSizeData[`${i}-${ratio}`] ?? 100) / 100)}cqw`,
                                               fontFamily: '"STKaiti", "华文楷体", "Long Cang", "Ma Shan Zheng", serif',
-                                              background: 'linear-gradient(to bottom, #FFF7D6, #FFD700, #B8860B)',
+                                              background: 'linear-gradient(to bottom, #FFFFFF, #E5E5E5, #A3A3A3)',
                                               WebkitBackgroundClip: 'text',
                                               WebkitTextFillColor: 'transparent',
                                               filter: 'drop-shadow(0.25cqw 0.25cqw 0.5cqw rgba(0,0,0,0.9))'
@@ -786,9 +813,9 @@ ABSOLUTE RULE - NO TEXT:
                                             {layer.name}
                                           </div>
                                           <div className="flex-1 h-[0.3cqw] min-h-[2px] ml-[1.5cqw] relative flex items-center rounded-full" style={{
-                                            background: 'linear-gradient(90deg, transparent, rgba(218,165,32,0.8) 40%, #FFD700)'
+                                            background: 'linear-gradient(90deg, transparent, rgba(115,115,115,0.8) 40%, #D4D4D4)'
                                           }}>
-                                            <div className="absolute right-0 w-[1.2cqw] h-[1.2cqw] min-w-[6px] min-h-[6px] bg-gradient-to-br from-[#FFF] to-[#FFD700] shadow-[0_0_10px_rgba(255,215,0,0.8)] border border-[#FFF]/70" style={{ transform: 'translateX(50%) rotate(45deg)' }}></div>
+                                            <div className="absolute right-0 w-[1.2cqw] h-[1.2cqw] min-w-[6px] min-h-[6px] bg-gradient-to-br from-[#FFF] to-[#D4D4D4] shadow-[0_0_10px_rgba(255,255,255,0.8)] border border-[#FFF]/70" style={{ transform: 'translateX(50%) rotate(45deg)' }}></div>
                                           </div>
                                         </div>
                                       ))}
@@ -818,7 +845,7 @@ ABSOLUTE RULE - NO TEXT:
                                         disabled={detectingLayers[`${i}-${ratio}`]}
                                         className={`absolute bottom-2 right-12 bg-white/90 p-2 rounded-lg shadow-sm transition-colors ${
                                           detectingLayers[`${i}-${ratio}`] 
-                                            ? 'text-orange-500 opacity-100 cursor-not-allowed' 
+                                            ? 'text-neutral-400 opacity-100 cursor-not-allowed' 
                                             : 'text-neutral-900 hover:bg-neutral-100 opacity-0 group-hover:opacity-100'
                                         }`}
                                         title={detectingLayers[`${i}-${ratio}`] ? "正在智能识别图层..." : "编辑标注"}
@@ -834,7 +861,7 @@ ABSOLUTE RULE - NO TEXT:
                                       </button>
                                     </>
                                   ) : isGeneratingThis ? (
-                                    <div className="flex flex-col items-center justify-center text-orange-500">
+                                    <div className="flex flex-col items-center justify-center text-neutral-500">
                                       <Loader2 className="w-8 h-8 animate-spin mb-2" />
                                       <span className="text-xs font-medium">生成中...</span>
                                     </div>
@@ -892,7 +919,7 @@ ABSOLUTE RULE - NO TEXT:
                             top: `${editingLabel.dishNameY}%`,
                             fontSize: `${11 * (editingLabel.dishNameSize / 100)}cqw`,
                             fontFamily: '"龚帆怒放体", "Gongfan Nufang", "Zhi Mang Xing", "STXingkai", "华文行楷", cursive',
-                            background: 'linear-gradient(to bottom, #FFF7D6, #FFD700, #B8860B)',
+                            background: 'linear-gradient(to bottom, #FFFFFF, #E5E5E5, #A3A3A3)',
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                             filter: 'drop-shadow(0.4cqw 0.4cqw 0.8cqw rgba(0,0,0,0.9))'
@@ -908,7 +935,7 @@ ABSOLUTE RULE - NO TEXT:
                               style={{
                                 fontSize: `${4.5 * (editingLabel.layerNameSize / 100)}cqw`,
                                 fontFamily: '"STKaiti", "华文楷体", "Long Cang", "Ma Shan Zheng", serif',
-                                background: 'linear-gradient(to bottom, #FFF7D6, #FFD700, #B8860B)',
+                                background: 'linear-gradient(to bottom, #FFFFFF, #E5E5E5, #A3A3A3)',
                                 WebkitBackgroundClip: 'text',
                                 WebkitTextFillColor: 'transparent',
                                 filter: 'drop-shadow(0.25cqw 0.25cqw 0.5cqw rgba(0,0,0,0.9))'
@@ -917,9 +944,9 @@ ABSOLUTE RULE - NO TEXT:
                               {layer.name}
                             </div>
                             <div className="flex-1 h-[0.3cqw] min-h-[2px] ml-[1.5cqw] relative flex items-center rounded-full" style={{
-                              background: 'linear-gradient(90deg, transparent, rgba(218,165,32,0.8) 40%, #FFD700)'
+                              background: 'linear-gradient(90deg, transparent, rgba(115,115,115,0.8) 40%, #D4D4D4)'
                             }}>
-                              <div className="absolute right-0 w-[1.2cqw] h-[1.2cqw] min-w-[6px] min-h-[6px] bg-gradient-to-br from-[#FFF] to-[#FFD700] shadow-[0_0_10px_rgba(255,215,0,0.8)] border border-[#FFF]/70" style={{ transform: 'translateX(50%) rotate(45deg)' }}></div>
+                              <div className="absolute right-0 w-[1.2cqw] h-[1.2cqw] min-w-[6px] min-h-[6px] bg-gradient-to-br from-[#FFF] to-[#D4D4D4] shadow-[0_0_10px_rgba(255,255,255,0.8)] border border-[#FFF]/70" style={{ transform: 'translateX(50%) rotate(45deg)' }}></div>
                             </div>
                          </div>
                       ))}
@@ -935,7 +962,7 @@ ABSOLUTE RULE - NO TEXT:
                             value={editingLabel.dishName}
                             onChange={(e) => setEditingLabel({ ...editingLabel, dishName: e.target.value })}
                             placeholder="例如：招牌牛肉面"
-                            className="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                            className="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
                           />
                           <div className="w-20 space-y-1">
                             <label className="text-xs font-medium text-neutral-500">位置 (%)</label>
@@ -944,7 +971,7 @@ ABSOLUTE RULE - NO TEXT:
                               min="0" max="100"
                               value={editingLabel.dishNameY}
                               onChange={(e) => setEditingLabel({ ...editingLabel, dishNameY: Number(e.target.value) })}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
                             />
                           </div>
                           <div className="w-20 space-y-1">
@@ -954,7 +981,7 @@ ABSOLUTE RULE - NO TEXT:
                               min="10" max="300"
                               value={editingLabel.dishNameSize}
                               onChange={(e) => setEditingLabel({ ...editingLabel, dishNameSize: Number(e.target.value) })}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
                             />
                           </div>
                         </div>
@@ -969,7 +996,7 @@ ABSOLUTE RULE - NO TEXT:
                             min="10" max="300"
                             value={editingLabel.layerNameSize}
                             onChange={(e) => setEditingLabel({ ...editingLabel, layerNameSize: Number(e.target.value) })}
-                            className="w-20 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                            className="w-20 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
                           />
                         </div>
                       </div>
@@ -985,7 +1012,7 @@ ABSOLUTE RULE - NO TEXT:
                                 newLayers[idx].name = e.target.value;
                                 setEditingLabel({ ...editingLabel, layers: newLayers });
                               }}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
                             />
                           </div>
                           <div className="w-20 space-y-1">
@@ -999,7 +1026,7 @@ ABSOLUTE RULE - NO TEXT:
                                 newLayers[idx].y = Number(e.target.value);
                                 setEditingLabel({ ...editingLabel, layers: newLayers });
                               }}
-                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-neutral-800 focus:border-neutral-800 outline-none bg-white"
                             />
                           </div>
                           <button 
@@ -1016,7 +1043,7 @@ ABSOLUTE RULE - NO TEXT:
                       ))}
                       <button onClick={() => {
                          setEditingLabel({ ...editingLabel, layers: [...editingLabel.layers, { y: 50, name: '新图层' }]});
-                      }} className="w-full py-3 border-2 border-dashed border-neutral-300 text-neutral-600 text-sm font-medium rounded-xl hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50/50 transition-colors flex items-center justify-center gap-2">
+                      }} className="w-full py-3 border-2 border-dashed border-neutral-300 text-neutral-600 text-sm font-medium rounded-xl hover:border-neutral-400 hover:text-black hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2">
                         <Plus className="w-4 h-4" /> 添加图层标注
                       </button>
                     </div>
@@ -1048,7 +1075,7 @@ ABSOLUTE RULE - NO TEXT:
                     }));
                     setEditingLabel(null);
                   }} 
-                  className="px-5 py-2.5 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors shadow-sm"
+                  className="px-5 py-2.5 bg-black text-white rounded-xl font-medium hover:bg-neutral-800 transition-colors shadow-sm"
                 >
                   确认并应用
                 </button>

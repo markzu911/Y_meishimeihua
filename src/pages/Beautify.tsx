@@ -131,6 +131,13 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
           body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
         });
         const verifyResult = await verifyRes.json();
+        
+        // Ensure points always reflect latest verified amount
+        const verifyPts = verifyResult?.currentIntegral ?? verifyResult?.points ?? verifyResult?.balance ?? verifyResult?.remain ?? verifyResult?.data?.balance ?? verifyResult?.data?.points ?? verifyResult?.data?.currentIntegral;
+        if (verifyPts !== undefined && verifyPts !== null) {
+          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: verifyPts } }));
+        }
+
         if (!verifyResult.success && !verifyResult.valid) {
           throw new Error(verifyResult.message || "积分不足");
         }
@@ -190,15 +197,18 @@ ABSOLUTE RULES:
           
           while (retries > 0) {
             try {
-              const res = await fetch("/api/gemini/generate-image", {
+              const res = await fetch("/api/gemini", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  base64Data,
-                  mimeType: selectedImages[i].type,
-                  prompt,
-                  ratio,
-                  resolution: selectedResolution
+                  model: 'gemini-3.1-flash-image-preview',
+                  payload: {
+                    base64Data,
+                    mimeType: selectedImages[i].type,
+                    prompt,
+                    ratio,
+                    resolution: selectedResolution
+                  }
                 })
               });
               
@@ -235,11 +245,14 @@ ABSOLUTE RULES:
 
       if (saasData && newResults.some(res => Object.values(res).some(url => url !== null))) {
         try {
-          await fetch('/api/tool/consume', {
+          const consumeRes = await fetch('/api/tool/consume', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
           });
+          const consumeData = await consumeRes.json();
+          const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
+          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
         } catch (e) {
           console.error("Consume error", e);
         }
@@ -276,7 +289,7 @@ ABSOLUTE RULES:
   const downloadAll = () => {
     resultImages.forEach((res, index) => {
       Object.entries(res).forEach(([ratio, url]) => {
-        if (url) downloadImage(url, index, ratio);
+        if (url) downloadImage(url as string, index, ratio);
       });
     });
   };
@@ -285,12 +298,12 @@ ABSOLUTE RULES:
   const hasResults = resultImages.some(res => Object.values(res).some(url => url !== null));
 
   return (
-    <div className="h-full flex flex-col bg-neutral-50 text-neutral-900 font-sans selection:bg-orange-200">
+    <div className="h-full flex flex-col bg-neutral-50 text-neutral-900 font-sans selection:bg-neutral-200">
       <header className="bg-white border-b border-neutral-200 shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="bg-orange-500 p-2 rounded-lg text-white">
+              <div className="bg-black p-2 rounded-lg text-white">
                 <Wand2 className="w-5 h-5" />
               </div>
               <h1 className="text-xl font-semibold tracking-tight">菜品一键美化</h1>
@@ -311,8 +324,8 @@ ABSOLUTE RULES:
               </div>
               
               <div 
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer mb-4
-                  ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-300 hover:border-orange-400 hover:bg-orange-50/30'}`}
+                className={`border-2 border-dashed rounded-xl overflow-hidden transition-colors cursor-pointer mb-4
+                  ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50'}`}
                 onClick={() => !isGenerating && fileInputRef.current?.click()}
                 onDrop={!isGenerating ? handleDrop : undefined}
                 onDragOver={handleDragOver}
@@ -324,32 +337,43 @@ ABSOLUTE RULES:
                   accept="image/*" 
                   className="hidden" 
                 />
-                <div className="flex flex-col items-center justify-center py-4">
-                  <div className="bg-orange-100 p-4 rounded-full text-orange-600 mb-4">
-                    <Plus className="w-8 h-8" />
+                {previewUrls[0] ? (
+                  <div className="relative w-full aspect-[4/3] group cursor-default">
+                    <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-neutral-100" />
+                    <div 
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      onClick={() => !isGenerating && fileInputRef.current?.click()}
+                    >
+                      <div className="bg-white/20 backdrop-blur-sm border border-white/30 text-white px-4 py-2 rounded-full text-sm font-medium">
+                        点击更换图片
+                      </div>
+                    </div>
+                    {!isGenerating && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(0);
+                        }}
+                        className="absolute top-2 right-2 z-10 bg-black/50 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  <p className="text-neutral-700 font-medium mb-1">点击上传或拖拽图片到此处</p>
-                  <p className="text-neutral-500 text-sm">每次仅支持 1 张</p>
-                </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <div className="flex flex-col items-center justify-center py-4">
+                      <div className="bg-neutral-100 p-4 rounded-full text-neutral-900 mb-4">
+                        <Plus className="w-8 h-8" />
+                      </div>
+                      <p className="text-neutral-700 font-medium mb-1">点击上传或拖拽图片到此处</p>
+                      <p className="text-neutral-500 text-sm">每次仅支持 1 张</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {previewUrls.length > 0 && (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {previewUrls.map((url, i) => (
-                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-neutral-200 group">
-                      <img src={url} alt={`Preview ${i}`} className="w-full h-full object-cover" />
-                      {!isGenerating && (
-                        <button 
-                          onClick={() => removeImage(i)}
-                          className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Removing separate preview layout */}
             </section>
 
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-200">
@@ -362,8 +386,8 @@ ABSOLUTE RULES:
                     disabled={isGenerating}
                     className={`text-center p-3 rounded-xl border transition-all ${
                       selectedStyle === style.id 
-                        ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500 text-orange-700' 
-                        : 'border-neutral-200 hover:border-orange-300 hover:bg-neutral-50 text-neutral-700'
+                        ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
+                        : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="font-medium">{style.name}</div>
@@ -390,8 +414,8 @@ ABSOLUTE RULES:
                       disabled={isGenerating}
                       className={`text-center p-3 rounded-xl border transition-all ${
                         isSelected
-                          ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500 text-orange-700' 
-                          : 'border-neutral-200 hover:border-orange-300 hover:bg-neutral-50 text-neutral-700'
+                          ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
+                          : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
                       } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className="font-medium">{ratio.name}</div>
@@ -412,8 +436,8 @@ ABSOLUTE RULES:
                     disabled={isGenerating}
                     className={`text-center p-3 rounded-xl border transition-all ${
                       selectedResolution === res.id 
-                        ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500 text-orange-700' 
-                        : 'border-neutral-200 hover:border-orange-300 hover:bg-neutral-50 text-neutral-700'
+                        ? 'border-black bg-neutral-900 ring-1 ring-black text-white' 
+                        : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="font-medium">{res.name}</div>
@@ -426,7 +450,7 @@ ABSOLUTE RULES:
             <button
               onClick={generateImages}
               disabled={selectedImages.length === 0 || selectedRatios.length === 0 || isGenerating || (allGenerated && selectedStyle === generatedStyle && JSON.stringify(selectedRatios) === JSON.stringify(generatedRatios) && selectedResolution === generatedResolution)}
-              className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="w-full bg-black hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               {isGenerating ? (
                 <>
@@ -465,7 +489,7 @@ ABSOLUTE RULES:
               {hasResults && (
                 <button 
                   onClick={downloadAll}
-                  className="text-sm font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-colors"
+                  className="text-sm font-medium text-black hover:text-neutral-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-neutral-50 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   全部下载
@@ -522,7 +546,7 @@ ABSOLUTE RULES:
                                       </button>
                                     </>
                                   ) : isGeneratingThis ? (
-                                    <div className="flex flex-col items-center justify-center text-orange-500">
+                                    <div className="flex flex-col items-center justify-center text-neutral-500">
                                       <Loader2 className="w-8 h-8 animate-spin mb-2" />
                                       <span className="text-xs font-medium">生成中...</span>
                                     </div>

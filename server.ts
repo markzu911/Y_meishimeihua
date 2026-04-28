@@ -37,9 +37,10 @@ async function startServer() {
         data: req.body,
         headers: { 'Content-Type': 'application/json' }
       });
+      console.log(`Response from ${targetPath}:`, JSON.stringify(response.data).substring(0, 500));
       res.status(response.status).json(response.data);
     } catch (error: any) {
-      console.error(error?.response?.data || error.message);
+      console.error(`Error from ${targetPath}:`, error?.response?.data || error.message);
       res.status(500).json({ error: "代理转发失败" });
     }
   };
@@ -48,56 +49,42 @@ async function startServer() {
   app.post("/api/tool/verify", (req, res) => proxyRequest(req, res, "/api/tool/verify"));
   app.post("/api/tool/consume", (req, res) => proxyRequest(req, res, "/api/tool/consume"));
 
-  // Gemini Endpoints
-  app.post("/api/gemini/generate-image", async (req, res) => {
-    const { base64Data, mimeType, prompt, ratio, resolution } = req.body;
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: prompt },
-          ],
-        },
-        config: {
-          imageConfig: { aspectRatio: ratio, imageSize: resolution }
-        }
-      });
-      let generatedUrl = null;
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          generatedUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-      if (generatedUrl) {
-        res.json({ url: generatedUrl });
-      } else {
-        res.status(500).json({ error: "Failed to extract image from response" });
-      }
-    } catch (error: any) {
-      console.error("Gemini Error:", error);
-      res.status(500).json({ error: error.message || "Image generation failed" });
-    }
+  app.post("/api/debug", (req, res) => {
+    require('fs').writeFileSync('debug.json', JSON.stringify(req.body, null, 2));
+    res.json({ ok: true });
   });
 
-  app.post("/api/gemini/detect-layers", async (req, res) => {
-    const { base64Data, prompt } = req.body;
+  app.post("/api/gemini", async (req, res) => {
+    const { model, payload } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: model || (payload.ratio ? 'gemini-3.1-flash-image-preview' : 'gemini-1.5-flash'),
         contents: {
           parts: [
-            { inlineData: { data: base64Data, mimeType: 'image/png' } },
-            { text: prompt }
-          ]
-        }
+            ...(payload.base64Data ? [{ inlineData: { data: payload.base64Data, mimeType: payload.mimeType || 'image/png' } }] : []),
+            { text: payload.prompt }
+          ],
+        },
+        config: payload.ratio ? {
+          imageConfig: { aspectRatio: payload.ratio, imageSize: payload.resolution || '1K' }
+        } : undefined
       });
-      res.json({ text: response.text });
+
+      let generatedUrl = null;
+      if (payload.ratio) {
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+          if (part.inlineData) {
+            generatedUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+        res.json({ url: generatedUrl });
+      } else {
+        res.json({ text: response.text });
+      }
     } catch (error: any) {
-      console.error("Gemini Layer Detection Error:", error);
-      res.status(500).json({ error: error.message || "Layer detection failed" });
+      console.error("Gemini Proxy Error:", error);
+      res.status(500).json({ error: error.message || "Gemini execution failed" });
     }
   });
 
