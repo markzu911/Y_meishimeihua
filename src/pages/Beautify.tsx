@@ -64,6 +64,7 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
   const [selectedRatios, setSelectedRatios] = useState<AspectRatio[]>(['3:4']);
   const [selectedResolution, setSelectedResolution] = useState<Resolution>('1K');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [generatingIndex, setGeneratingIndex] = useState<number>(-1);
   const [generatingRatio, setGeneratingRatio] = useState<AspectRatio | null>(null);
   const [resultImages, setResultImages] = useState<Partial<Record<AspectRatio, string | null>>[]>([]);
@@ -86,15 +87,79 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
     addFiles(files);
   };
 
-  const addFiles = (files: File[]) => {
+  const addFiles = async (files: File[]) => {
     if (files.length > 0) {
+      setIsCompressing(true);
       const file = files[0];
-      setSelectedImages([file]);
-      const url = URL.createObjectURL(file);
-      setPreviewUrls([url]);
-      setResultImages([{}]);
-      setError(null);
+      
+      try {
+        const compressedBase64 = await compressImage(file);
+        // Convert base64 back to File object to keep existing logic consistent
+        const compressedFile = dataURLtoFile(compressedBase64, file.name);
+        
+        setSelectedImages([compressedFile]);
+        setPreviewUrls([compressedBase64]);
+        setResultImages([{}]);
+        setError(null);
+      } catch (err) {
+        console.error("Compression error:", err);
+        setError("图片处理失败，请稍后重试");
+      } finally {
+        setIsCompressing(false);
+      }
     }
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxSide = 1600;
+
+          if (width > maxSide || height > maxSide) {
+            if (width > height) {
+              height = (height / width) * maxSide;
+              width = maxSide;
+            } else {
+              width = (width / height) * maxSide;
+              height = maxSide;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Could not get canvas context'));
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(compressed);
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
+  };
+
+  const dataURLtoFile = (dataurl: string, filename: string) => {
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) return new File([], filename);
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
   };
 
   const removeImage = (index: number) => {
@@ -382,7 +447,7 @@ ABSOLUTE RULES:
                         <Plus className="w-8 h-8" />
                       </div>
                       <p className="text-neutral-800 font-bold mb-1 font-display">上传菜品原图</p>
-                      <p className="text-neutral-400 text-xs">点击上传或拖拽到此处</p>
+                      <p className="text-neutral-400 text-xs px-4">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）</p>
                     </div>
                   </div>
                 )}
@@ -463,10 +528,15 @@ ABSOLUTE RULES:
 
             <button
               onClick={generateImages}
-              disabled={selectedImages.length === 0 || selectedRatios.length === 0 || isGenerating || (allGenerated && selectedStyle === generatedStyle && JSON.stringify(selectedRatios) === JSON.stringify(generatedRatios) && selectedResolution === generatedResolution)}
+              disabled={selectedImages.length === 0 || selectedRatios.length === 0 || isGenerating || isCompressing || (allGenerated && selectedStyle === generatedStyle && JSON.stringify(selectedRatios) === JSON.stringify(generatedRatios) && selectedResolution === generatedResolution)}
               className="w-full bg-brand-sage hover:bg-brand-sage/90 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed text-white font-bold py-5 px-6 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 shadow-xl shadow-brand-sage/30 hover:translate-y-[-2px] active:scale-[0.98]"
             >
-              {isGenerating ? (
+              {isCompressing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  正在压缩图片...
+                </>
+              ) : isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   正在焕新美化...
