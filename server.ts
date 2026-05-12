@@ -22,10 +22,6 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Use JSON and URLEncoded with high limits
-  app.use(express.json({ limit: '100mb' }));
-  app.use(express.urlencoded({ limit: '100mb', extended: true }));
-
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -39,27 +35,20 @@ async function startServer() {
     next();
   });
 
-  // SaaS Proxy Middleware
+  // SaaS Proxy Middleware (MOVE BEFORE BODY PARSERS)
   const saasProxy = createProxyMiddleware({
     target: "http://aibigtree.com",
     changeOrigin: true,
     pathFilter: ['/api/tool/**', '/api/upload/**'],
     logger: console,
-    on: {
-      proxyReq: (proxyReq, req, res) => {
-        // Fix for body-parser vs proxy conflict for non-multipart requests
-        // If it's multipart, multer/formdata handles it, we don't manually rewrite body
-        if (req.body && Object.keys(req.body).length > 0 && !req.headers['content-type']?.includes('multipart/form-data')) {
-          const bodyData = JSON.stringify(req.body);
-          proxyReq.setHeader('Content-Type', 'application/json');
-          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-          proxyReq.write(bodyData);
-        }
-      }
-    }
+    // No need for manually rewriting body since body-parsers haven't consumed the stream yet
   });
 
   app.use(saasProxy);
+
+  // Use JSON and URLEncoded with high limits (FOR NON-PROXY ROUTES)
+  app.use(express.json({ limit: '100mb' }));
+  app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
   app.post("/api/debug", (req, res) => {
     require('fs').writeFileSync('debug.json', JSON.stringify(req.body, null, 2));

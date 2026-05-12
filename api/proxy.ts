@@ -8,6 +8,12 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey: key });
 };
 
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -35,7 +41,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const ai = getAI();
       if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
 
-      const { model, payload } = req.body;
+      // Manually parse body since bodyParser is disabled
+      const buffers = [];
+      for await (const chunk of req) {
+        buffers.push(chunk);
+      }
+      const data = Buffer.concat(buffers).toString();
+      const body = JSON.parse(data);
+
+      const { model, payload } = body;
       const response = await ai.models.generateContent({
         model: model,
         ...payload
