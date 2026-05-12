@@ -43,13 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(response);
     }
 
-    // 4. /api/tool/* Proxy
-    if (path.startsWith('/api/tool/')) {
-      if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
+    // 4. /api/tool/* and /api/upload/* Proxy
+    if (path.startsWith('/api/tool/') || path.startsWith('/api/upload/')) {
       const targetUrl = `http://aibigtree.com${path}`;
       const response = await axios({
-        method: 'POST',
+        method: req.method,
         url: targetUrl,
         data: req.body,
         headers: { 'Content-Type': 'application/json' }

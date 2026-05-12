@@ -58,6 +58,11 @@ async function startServer() {
   app.post("/api/tool/verify", (req, res) => proxyRequest(req, res, "/api/tool/verify"));
   app.post("/api/tool/consume", (req, res) => proxyRequest(req, res, "/api/tool/consume"));
 
+  // Image upload/query/delete proxy
+  app.post("/api/upload/image", (req, res) => proxyRequest(req, res, "/api/upload/image"));
+  app.get("/api/upload/image", (req, res) => proxyRequest(req, res, "/api/upload/image"));
+  app.delete("/api/upload/image", (req, res) => proxyRequest(req, res, "/api/upload/image"));
+
   app.post("/api/debug", (req, res) => {
     require('fs').writeFileSync('debug.json', JSON.stringify(req.body, null, 2));
     res.json({ ok: true });

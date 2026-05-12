@@ -460,6 +460,19 @@ ABSOLUTE RULE - NO TEXT:
           const consumeData = await consumeRes.json();
           const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
           window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
+
+          // Upload generated results to SaaS
+          newResults.forEach(res => {
+            Object.values(res).forEach(url => {
+              if (url) {
+                fetch('/api/upload/image', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({ userId: saasData.userId, base64: url, source: 'result' })
+                }).catch(e => console.error("SaaS Upload Error", e));
+              }
+            });
+          });
         } catch (e) {
           console.error("Consume error", e);
         }
