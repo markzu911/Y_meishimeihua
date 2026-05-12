@@ -156,9 +156,8 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           let width = img.width;
           let height = img.height;
           
-          // Use a much higher resolution for "High Quality"
-          // 4096px is enough for most AI details while keeping size manageable
-          const maxSide = 4096;
+          // Use a high resolution (2048px is a good balance for HQ and size)
+          const maxSide = 2048;
 
           if (width > maxSide || height > maxSide) {
             if (width > height) {
@@ -181,8 +180,8 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Use very high quality (0.95-1.0)
-          const processed = canvas.toDataURL('image/jpeg', 0.95);
+          // Use high quality (0.85 is standard for HQ web images)
+          const processed = canvas.toDataURL('image/jpeg', 0.85);
           resolve(processed);
         };
         img.onerror = reject;
