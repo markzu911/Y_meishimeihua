@@ -156,8 +156,8 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           let width = img.width;
           let height = img.height;
           
-          // Use a high resolution (2048px is a good balance for HQ and size)
-          const maxSide = 2048;
+          // Use high resolution (3072px is excellent for quality)
+          const maxSide = 3072;
 
           if (width > maxSide || height > maxSide) {
             if (width > height) {
@@ -180,8 +180,8 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Use high quality (0.85 is standard for HQ web images)
-          const processed = canvas.toDataURL('image/jpeg', 0.85);
+          // Use high quality (0.90 is near-indistinguishable from original)
+          const processed = canvas.toDataURL('image/jpeg', 0.90);
           resolve(processed);
         };
         img.onerror = reject;
@@ -474,11 +474,25 @@ ABSOLUTE RULE - NO TEXT:
           newResults.forEach(res => {
             Object.values(res).forEach(url => {
               if (url) {
-                fetch('/api/upload/image', {
-                   method: 'POST',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({ userId: saasData.userId, base64: url, source: 'result' })
-                }).catch(e => console.error("SaaS Upload Error", e));
+                // Convert Base64 to Blob for Binary Upload (more efficient, better for bypass 413)
+                const fetchBlob = async () => {
+                  try {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    const formData = new FormData();
+                    formData.append('userId', saasData.userId);
+                    formData.append('source', 'result');
+                    formData.append('file', blob, `result-${Date.now()}.jpg`);
+                    
+                    await fetch('/api/upload/image', {
+                       method: 'POST',
+                       body: formData // Binary upload
+                    });
+                  } catch (e) {
+                    console.error("SaaS Binary Upload Error", e);
+                  }
+                };
+                fetchBlob();
               }
             });
           });

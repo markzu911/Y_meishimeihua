@@ -1,9 +1,9 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import axios from "axios";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 dotenv.config();
 
@@ -22,12 +22,13 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Use JSON and URLEncoded with high limits
   app.use(express.json({ limit: '100mb' }));
   app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Content-Security-Policy", "frame-ancestors *");
     
@@ -38,34 +39,27 @@ async function startServer() {
     next();
   });
 
-  const proxyRequest = async (req: express.Request, res: express.Response, targetPath: string) => {
-    const targetUrl = `http://aibigtree.com${targetPath}`;
-    try {
-      const response = await axios({
-        method: req.method,
-        url: targetUrl,
-        data: req.body,
-        headers: { 'Content-Type': 'application/json' },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity
-      });
-      console.log(`Response from ${targetPath}:`, JSON.stringify(response.data).substring(0, 500));
-      res.status(response.status).json(response.data);
-    } catch (error: any) {
-      console.error(`Error from ${targetPath}:`, error?.response?.data || error.message);
-      const status = error?.response?.status || 500;
-      res.status(status).json(error?.response?.data || { error: "代理转发失败" });
+  // SaaS Proxy Middleware
+  const saasProxy = createProxyMiddleware({
+    target: "http://aibigtree.com",
+    changeOrigin: true,
+    pathFilter: ['/api/tool/**', '/api/upload/**'],
+    logger: console,
+    on: {
+      proxyReq: (proxyReq, req, res) => {
+        // Fix for body-parser vs proxy conflict for non-multipart requests
+        // If it's multipart, multer/formdata handles it, we don't manually rewrite body
+        if (req.body && Object.keys(req.body).length > 0 && !req.headers['content-type']?.includes('multipart/form-data')) {
+          const bodyData = JSON.stringify(req.body);
+          proxyReq.setHeader('Content-Type', 'application/json');
+          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
+      }
     }
-  };
+  });
 
-  app.post("/api/tool/launch", (req, res) => proxyRequest(req, res, "/api/tool/launch"));
-  app.post("/api/tool/verify", (req, res) => proxyRequest(req, res, "/api/tool/verify"));
-  app.post("/api/tool/consume", (req, res) => proxyRequest(req, res, "/api/tool/consume"));
-
-  // Image upload/query/delete proxy
-  app.post("/api/upload/image", (req, res) => proxyRequest(req, res, "/api/upload/image"));
-  app.get("/api/upload/image", (req, res) => proxyRequest(req, res, "/api/upload/image"));
-  app.delete("/api/upload/image", (req, res) => proxyRequest(req, res, "/api/upload/image"));
+  app.use(saasProxy);
 
   app.post("/api/debug", (req, res) => {
     require('fs').writeFileSync('debug.json', JSON.stringify(req.body, null, 2));

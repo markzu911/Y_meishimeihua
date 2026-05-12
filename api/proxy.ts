@@ -47,18 +47,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (path.startsWith('/api/tool/') || path.startsWith('/api/upload/')) {
       const targetUrl = `http://aibigtree.com${path}`;
       
-      // Log for debugging
-      console.log(`Proxying ${req.method} to ${targetUrl}, body size: ${req.body ? JSON.stringify(req.body).length : 0}`);
+      // Use axios to forward the request
+      // Note: for multipart/form-data, we need to pass the headers correctly
+      const headers: any = { ...req.headers };
+      delete headers.host;
+      delete headers.connection;
 
       const response = await axios({
         method: req.method,
         url: targetUrl,
-        data: req.body,
-        headers: { 'Content-Type': 'application/json' },
+        data: req, // Pipe the original internal request stream
+        headers: headers,
+        responseType: 'arraybuffer',
         maxContentLength: Infinity,
-        maxBodyLength: Infinity
+        maxBodyLength: Infinity,
+        validateStatus: () => true
       });
-      return res.status(response.status).json(response.data);
+
+      res.status(response.status);
+      for (const [key, value] of Object.entries(response.headers)) {
+        res.setHeader(key, value as string);
+      }
+      return res.send(response.data);
     }
 
     // 5. Default
