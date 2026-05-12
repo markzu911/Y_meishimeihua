@@ -122,20 +122,21 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
 
   const addFiles = async (files: File[]) => {
     if (files.length > 0) {
-      setIsCompressing(true);
       const file = files[0];
       
+      // Use high quality processing
+      setIsCompressing(true);
       try {
-        const compressedBase64 = await compressImage(file);
+        const processedBase64 = await processImage(file);
         // Convert base64 back to File object to keep existing logic consistent
-        const compressedFile = dataURLtoFile(compressedBase64, file.name);
+        const processedFile = dataURLtoFile(processedBase64, file.name);
         
-        setSelectedImages([compressedFile]);
-        setPreviewUrls([compressedBase64]);
+        setSelectedImages([processedFile]);
+        setPreviewUrls([processedBase64]);
         setResultImages([{}]);
         setError(null);
       } catch (err) {
-        console.error("Compression error:", err);
+        console.error("Image processing error:", err);
         setError("图片处理失败，请稍后重试");
       } finally {
         setIsCompressing(false);
@@ -143,7 +144,7 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
     }
   };
 
-  const compressImage = (file: File): Promise<string> => {
+  const processImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -154,7 +155,10 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxSide = 1600;
+          
+          // Use a much higher resolution for "High Quality"
+          // 4096px is enough for most AI details while keeping size manageable
+          const maxSide = 4096;
 
           if (width > maxSide || height > maxSide) {
             if (width > height) {
@@ -171,9 +175,15 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject(new Error('Could not get canvas context'));
           
+          // Ensure background is white
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          
           ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(compressed);
+          
+          // Use very high quality (0.95-1.0)
+          const processed = canvas.toDataURL('image/jpeg', 0.95);
+          resolve(processed);
         };
         img.onerror = reject;
       };
@@ -239,36 +249,6 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
         resolve(base64);
       };
       reader.onerror = (error) => reject(error);
-    });
-  };
-
-  const compressBase64 = (base64: string, maxSide = 1600, quality = 0.8): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = base64;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxSide || height > maxSide) {
-          if (width > height) {
-            height = (height / width) * maxSide;
-            width = maxSide;
-          } else {
-            width = (width / height) * maxSide;
-            height = maxSide;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas context failed'));
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = reject;
     });
   };
 
@@ -491,20 +471,15 @@ ABSOLUTE RULE - NO TEXT:
           const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
           window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
 
-          // Upload generated results to SaaS with compression
+          // Upload generated results to SaaS
           newResults.forEach(res => {
-            Object.values(res).forEach(async (url) => {
+            Object.values(res).forEach(url => {
               if (url) {
-                try {
-                  const compressed = await compressBase64(url);
-                  fetch('/api/upload/image', {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ userId: saasData.userId, base64: compressed, source: 'result' })
-                  }).catch(e => console.error("SaaS Upload Error", e));
-                } catch (e) {
-                  console.error("Compression error for result", e);
-                }
+                fetch('/api/upload/image', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({ userId: saasData.userId, base64: url, source: 'result' })
+                }).catch(e => console.error("SaaS Upload Error", e));
               }
             });
           });
@@ -755,7 +730,7 @@ ABSOLUTE RULE - NO TEXT:
                         <Plus className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
                       <p className="text-neutral-800 text-sm sm:text-base font-bold mb-1 font-display">上传菜品原图</p>
-                      <p className="text-neutral-400 text-[10px] sm:text-xs px-2 sm:px-4 leading-relaxed">支持 JPG, PNG, WebP，最大 20MB</p>
+                      <p className="text-neutral-400 text-[10px] sm:text-xs px-2 sm:px-4 leading-relaxed">支持 JPG, PNG, WebP，最大 20MB（自动保留高画质）</p>
                     </div>
                   </div>
                 )}
@@ -820,7 +795,7 @@ ABSOLUTE RULE - NO TEXT:
               {isCompressing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  正在压缩图片...
+                  正在预处理图片...
                 </>
               ) : isGenerating ? (
                 <>
