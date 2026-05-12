@@ -89,22 +89,20 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
 
   const addFiles = async (files: File[]) => {
     if (files.length > 0) {
+      setIsCompressing(true);
       const file = files[0];
       
-      // If file is already small enough and and not huge, we might skip heavy compression
-      // But for consistency with AI input, we'll still do a "HQ process"
-      setIsCompressing(true);
       try {
-        const processedBase64 = await processImage(file);
+        const compressedBase64 = await compressImage(file);
         // Convert base64 back to File object to keep existing logic consistent
-        const processedFile = dataURLtoFile(processedBase64, file.name);
+        const compressedFile = dataURLtoFile(compressedBase64, file.name);
         
-        setSelectedImages([processedFile]);
-        setPreviewUrls([processedBase64]);
+        setSelectedImages([compressedFile]);
+        setPreviewUrls([compressedBase64]);
         setResultImages([{}]);
         setError(null);
       } catch (err) {
-        console.error("Image processing error:", err);
+        console.error("Compression error:", err);
         setError("图片处理失败，请稍后重试");
       } finally {
         setIsCompressing(false);
@@ -112,7 +110,7 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
     }
   };
 
-  const processImage = (file: File): Promise<string> => {
+  const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -123,9 +121,7 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          
-          // Use high resolution (2560px is excellent for quality while staying safe for size limits)
-          const maxSide = 2560;
+          const maxSide = 1600;
 
           if (width > maxSide || height > maxSide) {
             if (width > height) {
@@ -142,15 +138,9 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject(new Error('Could not get canvas context'));
           
-          // Ensure background is white for transparency-prone images
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, width, height);
-          
           ctx.drawImage(img, 0, 0, width, height);
-          
-          // Use high quality (0.85 is standard for HQ web images and significantly smaller than 0.9+)
-          const processed = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(processed);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(compressed);
         };
         img.onerror = reject;
       };
@@ -344,38 +334,25 @@ ABSOLUTE RULES:
           const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
           window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
 
-          // Upload generated results to SaaS
+          // Upload generated images to SaaS records
+          const allUrls: string[] = [];
           newResults.forEach(res => {
             Object.values(res).forEach(url => {
-              if (url) {
-                // Convert Base64 to Blob for Binary Upload (more efficient, better for bypass 413)
-                const uploadToSaaS = async () => {
-                  try {
-                    const response = await fetch(url);
-                    const blob = await response.blob();
-                    const formData = new FormData();
-                    formData.append('userId', saasData.userId);
-                    formData.append('source', 'result');
-                    // Ensure we send a proper filename and mime type
-                    formData.append('file', blob, `result-${Date.now()}.jpg`);
-                    
-                    const uploadRes = await fetch('/api/upload/image', {
-                       method: 'POST',
-                       body: formData // Binary multipart upload
-                    });
-                    
-                    if (!uploadRes.ok) {
-                      const errText = await uploadRes.text();
-                      console.error("SaaS Upload Failed:", uploadRes.status, errText);
-                    }
-                  } catch (e) {
-                    console.error("SaaS Binary Upload Error", e);
-                  }
-                };
-                uploadToSaaS();
-              }
+              if (typeof url === 'string') allUrls.push(url);
             });
           });
+
+          if (allUrls.length > 0) {
+            await fetch('/api/upload/image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: saasData.userId,
+                source: 'result',
+                base64s: allUrls
+              })
+            }).catch(uploadErr => console.error("Upload result images error", uploadErr));
+          }
         } catch (e) {
           console.error("Consume error", e);
         }
@@ -490,7 +467,7 @@ ABSOLUTE RULES:
                         <Plus className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
                       <p className="text-neutral-800 text-sm sm:text-base font-bold mb-1 font-display">上传菜品原图</p>
-                      <p className="text-neutral-400 text-[10px] sm:text-xs px-2 sm:px-4 leading-relaxed">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（自动保留高画质）</p>
+                      <p className="text-neutral-400 text-[10px] sm:text-xs px-2 sm:px-4 leading-relaxed">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）</p>
                     </div>
                   </div>
                 )}
@@ -575,7 +552,7 @@ ABSOLUTE RULES:
               {isCompressing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  正在预处理...
+                  正在压缩...
                 </>
               ) : isGenerating ? (
                 <>

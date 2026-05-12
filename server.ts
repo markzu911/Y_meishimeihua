@@ -1,9 +1,9 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import axios from "axios";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { createProxyMiddleware } from "http-proxy-middleware";
 
 dotenv.config();
 
@@ -22,9 +22,11 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(express.json({ limit: '50mb' }));
+
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Content-Security-Policy", "frame-ancestors *");
     
@@ -35,20 +37,25 @@ async function startServer() {
     next();
   });
 
-  // SaaS Proxy Middleware (MOVE BEFORE BODY PARSERS)
-  const saasProxy = createProxyMiddleware({
-    target: "http://aibigtree.com",
-    changeOrigin: true,
-    pathFilter: ['/api/tool/**', '/api/upload/**'],
-    logger: console,
-    // No need for manually rewriting body since body-parsers haven't consumed the stream yet
-  });
+  const proxyRequest = async (req: express.Request, res: express.Response, targetPath: string) => {
+    const targetUrl = `http://aibigtree.com${targetPath}`;
+    try {
+      const response = await axios({
+        method: req.method,
+        url: targetUrl,
+        data: req.method === 'GET' ? undefined : req.body,
+        params: req.query,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log(`Response from ${targetPath}:`, JSON.stringify(response.data).substring(0, 500));
+      res.status(response.status).json(response.data);
+    } catch (error: any) {
+      console.error(`Error from ${targetPath}:`, error?.response?.data || error.message);
+      res.status(500).json({ error: "代理转发失败" });
+    }
+  };
 
-  app.use(saasProxy);
-
-  // Use JSON and URLEncoded with high limits (FOR NON-PROXY ROUTES)
-  app.use(express.json({ limit: '100mb' }));
-  app.use(express.urlencoded({ limit: '100mb', extended: true }));
+  app.all(["/api/tool/*", "/api/upload/*", "/api/coze/*"], (req, res) => proxyRequest(req, res, req.path));
 
   app.post("/api/debug", (req, res) => {
     require('fs').writeFileSync('debug.json', JSON.stringify(req.body, null, 2));

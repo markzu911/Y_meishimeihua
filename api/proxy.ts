@@ -8,12 +8,6 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey: key });
 };
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -41,15 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const ai = getAI();
       if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
 
-      // Manually parse body since bodyParser is disabled
-      const buffers = [];
-      for await (const chunk of req) {
-        buffers.push(chunk);
-      }
-      const data = Buffer.concat(buffers).toString();
-      const body = JSON.parse(data);
-
-      const { model, payload } = body;
+      const { model, payload } = req.body;
       const response = await ai.models.generateContent({
         model: model,
         ...payload
@@ -57,32 +43,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(response);
     }
 
-    // 4. /api/tool/* and /api/upload/* Proxy
-    if (path.startsWith('/api/tool/') || path.startsWith('/api/upload/')) {
-      const targetUrl = `http://aibigtree.com${path}`;
-      
-      // Use axios to forward the request
-      // Note: for multipart/form-data, we need to pass the headers correctly
-      const headers: any = { ...req.headers };
-      delete headers.host;
-      delete headers.connection;
+    // 4. SaaS API Proxy
+    const saasRoutes = [
+      '/api/tool/',
+      '/api/upload/',
+      '/api/coze/'
+    ];
 
+    const matchedRoute = saasRoutes.find(route => path.startsWith(route));
+    if (matchedRoute) {
+      const targetUrl = `http://aibigtree.com${path}`;
       const response = await axios({
         method: req.method,
         url: targetUrl,
-        data: req, // Pipe the original internal request stream
-        headers: headers,
-        responseType: 'arraybuffer',
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        validateStatus: () => true
+        data: req.method === 'GET' ? undefined : req.body,
+        params: req.query,
+        headers: { 'Content-Type': 'application/json' }
       });
-
-      res.status(response.status);
-      for (const [key, value] of Object.entries(response.headers)) {
-        res.setHeader(key, value as string);
-      }
-      return res.send(response.data);
+      return res.status(response.status).json(response.data);
     }
 
     // 5. Default
