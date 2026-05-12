@@ -379,7 +379,7 @@ ABSOLUTE RULES:
 
   return (
     <div className="h-full flex flex-col bg-brand-paper text-neutral-900 font-sans selection:bg-brand-sage/20">
-      <header className="bg-brand-sand border-b border-neutral-200/60 shrink-0">
+      <header className="bg-brand-sand border-b border-neutral-200/60 shrink-0 hidden lg:block">
         <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
@@ -392,19 +392,19 @@ ABSOLUTE RULES:
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 min-h-0">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 min-h-0">
+        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
           
           {/* Left Column: Controls */}
-          <div className="space-y-6 lg:col-span-4 xl:col-span-3 overflow-y-auto pr-2 pb-4 scrollbar-hide">
-            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold font-display">1. 上传菜品照片</h2>
+          <div className="space-y-6 lg:col-span-4 xl:col-span-3 lg:overflow-y-auto lg:pr-2 lg:pb-4 scrollbar-hide shrink-0">
+            <section className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-neutral-200/50">
+              <div className="flex items-center justify-between mb-4 sm:mb-5">
+                <h2 className="text-base sm:text-lg font-bold font-display">1. 上传菜品照片</h2>
                 <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest">{selectedImages.length > 0 ? 'READY' : 'EMPTY'}</span>
               </div>
               
               <div 
-                className={`border-2 border-dashed rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer mb-5
+                className={`border-2 border-dashed rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer
                   ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-200 hover:border-brand-sage/50 hover:bg-brand-sand/30'}`}
                 onClick={() => !isGenerating && fileInputRef.current?.click()}
                 onDrop={!isGenerating ? handleDrop : undefined}
@@ -421,10 +421,10 @@ ABSOLUTE RULES:
                   <div className="relative w-full aspect-[4/3] group cursor-default">
                     <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-brand-sand" />
                     <div 
-                      className="absolute inset-0 bg-brand-sage/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      className="absolute inset-0 bg-brand-sage/40 backdrop-blur-[2px] opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                       onClick={() => !isGenerating && fileInputRef.current?.click()}
                     >
-                      <div className="bg-white/90 text-brand-sage px-5 py-2.5 rounded-2xl text-sm font-bold shadow-xl shadow-brand-sage/20 transition-transform hover:scale-105">
+                      <div className="bg-white/90 text-brand-sage px-5 py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-xl shadow-brand-sage/20 transition-transform hover:scale-105">
                         点击更换图片
                       </div>
                     </div>
@@ -434,20 +434,20 @@ ABSOLUTE RULES:
                           e.stopPropagation();
                           removeImage(0);
                         }}
-                        className="absolute top-3 right-3 z-10 bg-white/90 text-neutral-400 p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:text-red-500 hover:bg-white shadow-lg"
+                        className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10 bg-white/90 text-neutral-400 p-2 rounded-lg sm:rounded-xl lg:opacity-0 lg:group-hover:opacity-100 transition-all hover:text-red-500 hover:bg-white shadow-lg"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="p-10 text-center">
-                    <div className="flex flex-col items-center justify-center py-6">
-                      <div className="bg-brand-sand p-5 rounded-2xl text-brand-sage mb-5 shadow-inner">
-                        <Plus className="w-8 h-8" />
+                  <div className="p-6 sm:p-10 text-center">
+                    <div className="flex flex-col items-center justify-center py-4 sm:py-6">
+                      <div className="bg-brand-sand p-4 sm:p-5 rounded-xl sm:rounded-2xl text-brand-sage mb-4 sm:mb-5 shadow-inner">
+                        <Plus className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
-                      <p className="text-neutral-800 font-bold mb-1 font-display">上传菜品原图</p>
-                      <p className="text-neutral-400 text-xs px-4">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）</p>
+                      <p className="text-neutral-800 text-sm sm:text-base font-bold mb-1 font-display">上传菜品原图</p>
+                      <p className="text-neutral-400 text-[10px] sm:text-xs px-2 sm:px-4 leading-relaxed">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）</p>
                     </div>
                   </div>
                 )}
@@ -456,104 +456,97 @@ ABSOLUTE RULES:
               {/* Removing separate preview layout */}
             </section>
 
-            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
-              <h2 className="text-lg font-bold font-display mb-5">2. 选择美化风格</h2>
-              <div className="grid grid-cols-2 gap-3">
+            <section className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-neutral-200/50">
+              <h2 className="text-base sm:text-lg font-bold font-display mb-4 sm:mb-5">2. 选择美化风格</h2>
+              <div className="grid grid-cols-2 xs:grid-cols-3 lg:grid-cols-2 gap-2 sm:gap-3">
                 {STYLES.map((style) => (
                   <button
                     key={style.id}
                     onClick={() => setSelectedStyle(style.id)}
                     disabled={isGenerating}
-                    className={`text-center p-4 rounded-2xl border-2 transition-all duration-300 ${
+                    className={`text-center p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all duration-300 ${
                       selectedStyle === style.id 
-                        ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold translate-y-[-2px]' 
+                        ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold translate-y-[-1px]' 
                         : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-500 font-medium'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <div className="text-sm">{style.name}</div>
+                    <div className="text-xs sm:text-sm">{style.name}</div>
                   </button>
                 ))}
               </div>
             </section>
 
-            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
-              <h2 className="text-lg font-bold font-display mb-5">3. 输出比例</h2>
-              <div className="grid grid-cols-2 gap-3">
-                {RATIOS.map((ratio) => {
-                  const isSelected = selectedRatios.includes(ratio.id);
-                  return (
+            <section className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-neutral-200/50">
+              <h2 className="text-base sm:text-lg font-bold font-display mb-4 sm:mb-5">3. 输出比例 & 清晰度</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-4 lg:grid-cols-2 gap-2 sm:gap-3">
+                  {RATIOS.map((ratio) => {
+                    const isSelected = selectedRatios.includes(ratio.id);
+                    return (
+                      <button
+                        key={ratio.id}
+                        onClick={() => {
+                          setSelectedRatios(prev => 
+                            prev.includes(ratio.id) 
+                              ? prev.filter(r => r !== ratio.id)
+                              : [...prev, ratio.id]
+                          );
+                        }}
+                        disabled={isGenerating}
+                        className={`text-center p-2.5 sm:p-3 rounded-xl border-2 transition-all duration-300 ${
+                          isSelected
+                            ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold' 
+                            : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-500 font-medium'
+                        } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <div className="text-xs sm:text-sm font-bold">{ratio.name}</div>
+                        <div className={`text-[8px] sm:text-[10px] uppercase tracking-tighter mt-0.5 ${isSelected ? 'text-white/60' : 'text-neutral-400'}`}>{ratio.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-2 border-t border-neutral-100 mt-4">
+                  {RESOLUTIONS.map((res) => (
                     <button
-                      key={ratio.id}
-                      onClick={() => {
-                        setSelectedRatios(prev => 
-                          prev.includes(ratio.id) 
-                            ? prev.filter(r => r !== ratio.id)
-                            : [...prev, ratio.id]
-                        );
-                      }}
+                      key={res.id}
+                      onClick={() => setSelectedResolution(res.id)}
                       disabled={isGenerating}
-                      className={`text-center p-4 rounded-2xl border-2 transition-all duration-300 ${
-                        isSelected
-                          ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold' 
-                          : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-500 font-medium'
+                      className={`text-center p-2 sm:p-2.5 rounded-xl border-2 transition-all duration-300 ${
+                        selectedResolution === res.id 
+                          ? 'border-brand-sage bg-brand-sage text-white shadow-md shadow-brand-sage/10 font-bold' 
+                          : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-400 font-medium'
                       } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      <div className="text-sm">{ratio.name}</div>
-                      <div className={`text-[10px] uppercase tracking-tighter mt-1 ${isSelected ? 'text-white/60' : 'text-neutral-400'}`}>{ratio.desc}</div>
+                      <div className="text-[10px] sm:text-xs">{res.name}</div>
                     </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
-              <h2 className="text-lg font-bold font-display mb-5">4. 清晰度</h2>
-              <div className="grid grid-cols-3 gap-3">
-                {RESOLUTIONS.map((res) => (
-                  <button
-                    key={res.id}
-                    onClick={() => setSelectedResolution(res.id)}
-                    disabled={isGenerating}
-                    className={`text-center p-3.5 rounded-2xl border-2 transition-all duration-300 ${
-                      selectedResolution === res.id 
-                        ? 'border-brand-sage bg-brand-sage text-white shadow-lg shadow-brand-sage/20 font-bold' 
-                        : 'border-neutral-100 bg-brand-sand/30 hover:border-neutral-200 hover:bg-white text-neutral-500 font-medium'
-                    } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <div className="text-sm">{res.name}</div>
-                  </button>
-                ))}
+                  ))}
+                </div>
               </div>
             </section>
 
             <button
               onClick={generateImages}
               disabled={selectedImages.length === 0 || selectedRatios.length === 0 || isGenerating || isCompressing || (allGenerated && selectedStyle === generatedStyle && JSON.stringify(selectedRatios) === JSON.stringify(generatedRatios) && selectedResolution === generatedResolution)}
-              className="w-full bg-brand-sage hover:bg-brand-sage/90 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed text-white font-bold py-5 px-6 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 shadow-xl shadow-brand-sage/30 hover:translate-y-[-2px] active:scale-[0.98]"
+              className="w-full bg-brand-sage hover:bg-brand-sage/90 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed text-white font-bold py-4 sm:py-5 px-6 rounded-xl sm:rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 sm:gap-3 shadow-xl shadow-brand-sage/30 hover:translate-y-[-2px] active:scale-[0.98]"
             >
               {isCompressing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  正在压缩图片...
+                  正在压缩...
                 </>
               ) : isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  正在焕新美化...
+                  正在焕新...
                 </>
               ) : (selectedStyle !== generatedStyle || JSON.stringify(selectedRatios) !== JSON.stringify(generatedRatios) || selectedResolution !== generatedResolution) && hasResults ? (
                 <>
-                  <Wand2 className="w-5 h-5" />
-                  更新风格并美化
-                </>
-              ) : allGenerated ? (
-                <>
-                  <ImageIcon className="w-5 h-5" />
-                  美化已完成
+                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                  更新风格
                 </>
               ) : (
                 <>
-                  <Wand2 className="w-5 h-5" />
+                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   开启 AI 美化
                 </>
               )}
@@ -567,13 +560,13 @@ ABSOLUTE RULES:
           </div>
 
           {/* Right Column: Result */}
-          <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-brand-sand/50 border border-neutral-200/50 flex flex-col lg:col-span-8 xl:col-span-9 min-h-0">
-            <div className="flex items-center justify-between mb-8 shrink-0">
-              <h2 className="text-2xl font-bold font-display">生成美化结果</h2>
+          <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] shadow-xl shadow-brand-sand/50 border border-neutral-200/50 flex flex-col lg:col-span-8 xl:col-span-9 min-h-[400px] lg:min-h-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 shrink-0">
+              <h2 className="text-xl sm:text-2xl font-bold font-display">生成美化结果</h2>
               {hasResults && (
                 <button 
                   onClick={downloadAll}
-                  className="text-sm font-bold text-brand-sage hover:text-brand-sage/80 flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-sand/50 hover:bg-brand-sand transition-all shadow-sm"
+                  className="text-xs sm:text-sm font-bold text-brand-sage hover:text-brand-sage/80 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl sm:rounded-2xl bg-brand-sand/50 hover:bg-brand-sand transition-all shadow-sm w-full sm:w-auto"
                 >
                   <Download className="w-4 h-4" />
                   打包保存至本地
@@ -581,22 +574,22 @@ ABSOLUTE RULES:
               )}
             </div>
             
-            <div className={`flex-1 bg-brand-sand/50 rounded-3xl border border-neutral-200 relative flex flex-col min-h-0 ${selectedImages.length > 0 ? 'p-8' : 'items-center justify-center'}`}>
+            <div className={`flex-1 bg-brand-sand/50 rounded-2xl sm:rounded-3xl border border-neutral-200 relative flex flex-col min-h-0 ${selectedImages.length > 0 ? 'p-4 sm:p-8' : 'items-center justify-center'}`}>
               {selectedImages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-neutral-300 p-12 text-center h-full">
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-6">
-                    <ImageIcon className="w-16 h-16 opacity-30" />
+                <div className="flex flex-col items-center justify-center text-neutral-300 p-8 sm:p-12 text-center h-full">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-sm mb-4 sm:mb-6">
+                    <ImageIcon className="w-12 h-12 sm:w-16 sm:h-16 opacity-30" />
                   </div>
-                  <h3 className="text-xl font-bold font-display text-neutral-800 mb-2">等候您的菜品</h3>
-                  <p className="max-w-xs text-neutral-400">选择心仪的风格后，AI 将为您呈现大师级的摄影佳作</p>
+                  <h3 className="text-lg sm:text-xl font-bold font-display text-neutral-800 mb-2">等候您的菜品</h3>
+                  <p className="max-w-xs text-xs sm:text-sm text-neutral-400">选择心仪的风格后，AI 将为您呈现大师级的摄影佳作</p>
                 </div>
               ) : (
-                <div className="flex-1 overflow-y-auto pr-4 scrollbar-custom">
-                  <div className="flex flex-col gap-16">
+                <div className="flex-1 overflow-y-auto lg:pr-4 scrollbar-custom">
+                  <div className="flex flex-col gap-12 sm:gap-16">
                     {selectedImages.map((_, i) => (
                       <div key={i} className="flex flex-col gap-8">
                         
-                        <div className={`grid grid-cols-1 ${selectedRatios.length > 1 ? 'xl:grid-cols-2' : ''} gap-x-12 gap-y-16`}>
+                        <div className={`grid grid-cols-1 ${selectedRatios.length > 1 ? 'xl:grid-cols-2' : ''} gap-x-8 sm:gap-x-12 gap-y-12 sm:gap-y-16`}>
                           {selectedRatios.map(ratio => {
                             const ratioInfo = RATIOS.find(r => r.id === ratio);
                             const title = `${ratioInfo?.name || ratio}: ${ratioInfo?.desc || ''}`;
@@ -609,44 +602,46 @@ ABSOLUTE RULES:
 
                             return (
                               <div key={ratio} className="flex flex-col w-full items-center">
-                                <div className="text-[10px] font-bold text-neutral-400 mb-4 px-4 py-1.5 bg-white rounded-full shadow-sm border border-neutral-100 uppercase tracking-[0.2em] font-display w-fit">
+                                <div className="text-[9px] sm:text-[10px] font-bold text-neutral-400 mb-3 sm:mb-4 px-3 sm:px-4 py-1 sm:py-1.5 bg-white rounded-full shadow-sm border border-neutral-100 uppercase tracking-[0.2em] font-display w-fit">
                                   {title}
                                 </div>
                                 <div 
                                   style={aspectRatioStyle} 
-                                  className="relative bg-white rounded-[2rem] border border-neutral-200/50 shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group h-[60vh] max-h-[700px] max-w-full"
+                                  className="relative bg-white rounded-xl sm:rounded-[2rem] border border-neutral-200/50 shadow-xl sm:shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group w-full lg:h-[60vh] lg:max-h-[700px]"
                                 >
                                   {url ? (
                                     <>
                                       <img 
                                         src={url} 
                                         alt={`Result ${i} ${ratio}`} 
-                                        className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-700 ease-out" 
+                                        className="w-full h-full object-contain cursor-zoom-in lg:hover:scale-105 transition-all duration-700 ease-out" 
                                         onClick={() => setZoomedImage(url)}
                                       />
-                                      <button 
-                                        onClick={() => downloadImage(url, i, ratio)}
-                                        className="absolute bottom-6 right-6 bg-white/95 text-brand-sage p-3.5 rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
-                                        title={`下载 ${ratio} 图片`}
-                                      >
-                                        <Download className="w-5 h-5" />
-                                      </button>
-                                      <div className="absolute top-6 left-6 bg-brand-sage/10 backdrop-blur-md border border-brand-sage/20 text-brand-sage px-3 py-1 rounded-lg text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex gap-2 overflow-hidden">
+                                        <button 
+                                          onClick={() => downloadImage(url, i, ratio)}
+                                          className="bg-white/95 text-brand-sage p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all lg:opacity-0 lg:group-hover:opacity-100 hover:scale-110 active:scale-95"
+                                          title={`下载 ${ratio} 图片`}
+                                        >
+                                          <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        </button>
+                                      </div>
+                                      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 bg-brand-sage/10 backdrop-blur-md border border-brand-sage/20 text-brand-sage px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-[8px] sm:text-[10px] font-bold tracking-widest uppercase lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                         Rendered
                                       </div>
                                     </>
                                   ) : isGeneratingThis ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                      <div className="relative">
-                                        <Loader2 className="w-12 h-12 text-brand-sage animate-spin mb-4" />
+                                    <div className="flex flex-col items-center justify-center px-4 text-center">
+                                      <div className="relative mb-3 sm:mb-4">
+                                        <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 text-brand-sage animate-spin" />
                                         <div className="absolute inset-0 blur-xl bg-brand-sage/20 rounded-full animate-pulse"></div>
                                       </div>
-                                      <span className="text-xs font-bold text-brand-sage tracking-widest uppercase animate-pulse font-display">Crafting Excellence...</span>
+                                      <span className="text-[10px] sm:text-xs font-bold text-brand-sage tracking-widest uppercase animate-pulse font-display">Crafting Excellence...</span>
                                     </div>
                                   ) : (
                                     <div className="flex flex-col items-center justify-center text-neutral-200">
-                                      <ImageIcon className="w-12 h-12 mb-4 opacity-20" />
-                                      <span className="text-xs font-bold tracking-widest uppercase font-display opacity-30">Panting soon</span>
+                                      <ImageIcon className="w-8 h-8 sm:w-12 sm:h-12 mb-3 sm:mb-4 opacity-20" />
+                                      <span className="text-[10px] sm:text-xs font-bold tracking-widest uppercase font-display opacity-30">Waiting...</span>
                                     </div>
                                   )}
                                 </div>

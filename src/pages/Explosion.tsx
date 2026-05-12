@@ -639,7 +639,7 @@ ABSOLUTE RULE - NO TEXT:
 
   return (
     <div className="h-full flex flex-col bg-brand-paper text-neutral-900 font-sans selection:bg-brand-sage/20">
-      <header className="bg-brand-sand border-b border-neutral-200/60 shrink-0">
+      <header className="bg-brand-sand border-b border-neutral-200/60 shrink-0 hidden lg:block">
         <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
@@ -652,19 +652,19 @@ ABSOLUTE RULE - NO TEXT:
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 min-h-0">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 min-h-0">
+        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
           
           {/* Left Column: Controls */}
-          <div className="space-y-6 lg:col-span-4 xl:col-span-3 overflow-y-auto pr-2 pb-4">
-            <section className="bg-white p-7 rounded-3xl shadow-sm border border-neutral-200/50">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold font-display">1. 上传菜品照片</h2>
+          <div className="space-y-6 lg:col-span-4 xl:col-span-3 lg:overflow-y-auto lg:pr-2 lg:pb-4 shrink-0">
+            <section className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-neutral-200/50">
+              <div className="flex items-center justify-between mb-4 sm:mb-5">
+                <h2 className="text-base sm:text-lg font-bold font-display">1. 上传菜品照片</h2>
                 <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest">{selectedImages.length > 0 ? 'READY' : 'EMPTY'}</span>
               </div>
               
               <div 
-                className={`border-2 border-dashed rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer mb-5
+                className={`border-2 border-dashed rounded-xl sm:rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer
                   ${isGenerating ? 'opacity-50 pointer-events-none' : 'border-neutral-200 hover:border-brand-sage/50 hover:bg-brand-sand/30'}`}
                 onClick={() => !isGenerating && fileInputRef.current?.click()}
                 onDrop={!isGenerating ? handleDrop : undefined}
@@ -681,10 +681,10 @@ ABSOLUTE RULE - NO TEXT:
                   <div className="relative w-full aspect-[4/3] group cursor-default">
                     <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-brand-sand" />
                     <div 
-                      className="absolute inset-0 bg-brand-sage/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      className="absolute inset-0 bg-brand-sage/40 backdrop-blur-[2px] opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                       onClick={() => !isGenerating && fileInputRef.current?.click()}
                     >
-                      <div className="bg-white/90 text-brand-sage px-5 py-2.5 rounded-2xl text-sm font-bold shadow-xl shadow-brand-sage/20 transition-transform hover:scale-105">
+                      <div className="bg-white/90 text-brand-sage px-5 py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-xl shadow-brand-sage/20 transition-transform hover:scale-105">
                         点击更换图片
                       </div>
                     </div>
@@ -694,20 +694,20 @@ ABSOLUTE RULE - NO TEXT:
                           e.stopPropagation();
                           removeImage(0);
                         }}
-                        className="absolute top-3 right-3 z-10 bg-white/90 text-neutral-400 p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:text-red-500 hover:bg-white shadow-lg"
+                        className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10 bg-white/90 text-neutral-400 p-2 rounded-lg sm:rounded-xl lg:opacity-0 lg:group-hover:opacity-100 transition-all hover:text-red-500 hover:bg-white shadow-lg"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="p-10 text-center">
-                    <div className="flex flex-col items-center justify-center py-6">
-                      <div className="bg-brand-sand p-5 rounded-2xl text-brand-sage mb-5 shadow-inner">
-                        <Plus className="w-8 h-8" />
+                  <div className="p-6 sm:p-10 text-center">
+                    <div className="flex flex-col items-center justify-center py-4 sm:py-6">
+                      <div className="bg-brand-sand p-4 sm:p-5 rounded-xl sm:rounded-2xl text-brand-sage mb-4 sm:mb-5 shadow-inner">
+                        <Plus className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
-                      <p className="text-neutral-800 font-bold mb-1 font-display">上传菜品原图</p>
-                      <p className="text-neutral-400 text-xs px-4">支持常见图片格式（如 JPG, PNG, WebP），最大支持 20MB（通过前端压缩上传）</p>
+                      <p className="text-neutral-800 text-sm sm:text-base font-bold mb-1 font-display">上传菜品原图</p>
+                      <p className="text-neutral-400 text-[10px] sm:text-xs px-2 sm:px-4 leading-relaxed">支持 JPG, PNG, WebP，最大 20MB</p>
                     </div>
                   </div>
                 )}
@@ -805,13 +805,13 @@ ABSOLUTE RULE - NO TEXT:
           </div>
 
           {/* Right Column: Result */}
-          <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-brand-sand/50 border border-neutral-200/50 flex flex-col lg:col-span-8 xl:col-span-9 min-h-0">
-            <div className="flex items-center justify-between mb-8 shrink-0">
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <h2 className="text-2xl font-bold font-display text-neutral-900">生成爆炸图结果</h2>
+          <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] shadow-xl shadow-brand-sand/50 border border-neutral-200/50 flex flex-col lg:col-span-8 xl:col-span-9 min-h-[400px] lg:min-h-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 shrink-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-2 sm:gap-4">
+                <h2 className="text-xl sm:text-2xl font-bold font-display text-neutral-900">生成爆炸图结果</h2>
                 {hasResults && (
-                  <span className="text-[10px] font-bold text-brand-sage bg-brand-sand border border-brand-sage/20 px-4 py-1.5 rounded-full flex items-center gap-2 uppercase tracking-widest shadow-sm">
-                    <Tag className="w-3 h-3" />
+                  <span className="text-[9px] sm:text-[10px] font-bold text-brand-sage bg-brand-sand border border-brand-sage/20 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full flex items-center gap-1.5 sm:gap-2 uppercase tracking-widest shadow-sm w-fit">
+                    <Tag className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     Interactive: 点击图片右下角标签可编辑
                   </span>
                 )}
@@ -819,7 +819,7 @@ ABSOLUTE RULE - NO TEXT:
               {hasResults && (
                 <button 
                   onClick={downloadAll}
-                  className="text-sm font-bold text-brand-sage hover:text-brand-sage/80 flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-sand/50 hover:bg-brand-sand transition-all shadow-sm"
+                  className="text-xs sm:text-sm font-bold text-brand-sage hover:text-brand-sage/80 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl sm:rounded-2xl bg-brand-sand/50 hover:bg-brand-sand transition-all shadow-sm w-full sm:w-auto"
                 >
                   <Download className="w-4 h-4" />
                   保存所有创意
@@ -827,18 +827,18 @@ ABSOLUTE RULE - NO TEXT:
               )}
             </div>
             
-            <div className={`flex-1 bg-brand-sand/50 rounded-3xl border border-neutral-200 relative flex flex-col min-h-0 ${selectedImages.length > 0 ? 'p-8' : 'items-center justify-center'}`}>
+            <div className={`flex-1 bg-brand-sand/50 rounded-2xl sm:rounded-3xl border border-neutral-200 relative flex flex-col min-h-0 ${selectedImages.length > 0 ? 'p-4 sm:p-8' : 'items-center justify-center'}`}>
               {selectedImages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-neutral-300 p-12 text-center h-full">
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm mb-6">
-                    <Layers className="w-16 h-16 opacity-30" />
+                <div className="flex flex-col items-center justify-center text-neutral-300 p-8 sm:p-12 text-center h-full">
+                  <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-sm mb-4 sm:mb-6">
+                    <Layers className="w-12 h-12 sm:w-16 sm:h-16 opacity-30" />
                   </div>
-                  <h3 className="text-xl font-bold font-display text-neutral-800 mb-2">等候您的菜品</h3>
-                  <p className="max-w-xs text-neutral-400">我们将为您拆解美食精髓，打造极具冲击力的视觉效果</p>
+                  <h3 className="text-lg sm:text-xl font-bold font-display text-neutral-800 mb-2">等候您的菜品</h3>
+                  <p className="max-w-xs text-xs sm:text-sm text-neutral-400">我们将为您拆解美食精髓，打造极具冲击力的视觉效果</p>
                 </div>
               ) : (
-                <div className="flex-1 overflow-y-auto pr-4 scrollbar-custom">
-                  <div className="flex flex-col gap-16">
+                <div className="flex-1 overflow-y-auto lg:pr-4 scrollbar-custom">
+                  <div className="flex flex-col gap-12 sm:gap-16">
                     {selectedImages.map((_, i) => (
                       <div key={i} className="flex flex-col gap-6">
                         
@@ -855,19 +855,19 @@ ABSOLUTE RULE - NO TEXT:
 
                             return (
                               <div key={ratio} className="flex flex-col w-full items-center">
-                                <div className="text-[10px] font-bold text-neutral-400 mb-4 px-4 py-1.5 bg-white rounded-full shadow-sm border border-neutral-100 uppercase tracking-[0.2em] font-display w-fit">
+                                <div className="text-[9px] sm:text-[10px] font-bold text-neutral-400 mb-3 sm:mb-4 px-3 sm:px-4 py-1 sm:py-1.5 bg-white rounded-full shadow-sm border border-neutral-100 uppercase tracking-[0.2em] font-display w-fit">
                                   {title}
                                 </div>
                                 <div 
                                   style={aspectRatioStyle} 
-                                  className="relative bg-white rounded-[2rem] border border-neutral-200/50 shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group h-[60vh] max-h-[700px] max-w-full @container"
+                                  className="relative bg-white rounded-xl sm:rounded-[2rem] border border-neutral-200/50 shadow-xl sm:shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group w-full lg:h-[60vh] lg:max-h-[700px] @container"
                                 >
                                   {url ? (
                                     <>
                                       <img 
                                         src={url} 
                                         alt={`Result ${i} ${ratio}`} 
-                                        className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-700 ease-out" 
+                                        className="w-full h-full object-contain cursor-zoom-in lg:hover:scale-105 transition-all duration-700 ease-out" 
                                         onClick={() => setZoomedImage(url)}
                                       />
                                       {dishNamesData[`${i}-${ratio}`] && (
@@ -908,7 +908,7 @@ ABSOLUTE RULE - NO TEXT:
                                           </div>
                                         </div>
                                       ))}
-                                      <div className="absolute bottom-6 right-6 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                                      <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex items-center gap-2 sm:gap-3 lg:opacity-0 lg:group-hover:opacity-100 transition-all transform lg:translate-y-2 lg:group-hover:translate-y-0">
                                         <button 
                                           onClick={() => {
                                             if (detectingLayers[`${i}-${ratio}`]) return;
@@ -933,35 +933,35 @@ ABSOLUTE RULE - NO TEXT:
                                             });
                                           }}
                                           disabled={detectingLayers[`${i}-${ratio}`]}
-                                          className="bg-white/95 text-brand-sage p-3.5 rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all hover:scale-110 active:scale-95"
+                                          className="bg-white/95 text-brand-sage p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all hover:scale-110 active:scale-95"
                                           title={detectingLayers[`${i}-${ratio}`] ? "智能识别中..." : "编辑标注"}
                                         >
-                                          {detectingLayers[`${i}-${ratio}`] ? <Loader2 className="w-5 h-5 animate-spin" /> : <Tag className="w-5 h-5" />}
+                                          {detectingLayers[`${i}-${ratio}`] ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Tag className="w-4 h-4 sm:w-5 sm:h-5" />}
                                         </button>
                                         <button 
                                           onClick={() => downloadImageWithLabels(url, i, ratio)}
-                                          className="bg-white/95 text-brand-sage p-3.5 rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all hover:scale-110 active:scale-95"
+                                          className="bg-white/95 text-brand-sage p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl shadow-2xl border border-neutral-100 hover:bg-brand-sand transition-all hover:scale-110 active:scale-95"
                                           title="下载图片"
                                         >
-                                          <Download className="w-5 h-5" />
+                                          <Download className="w-4 h-4 sm:w-5 sm:h-5" />
                                         </button>
                                       </div>
-                                      <div className="absolute top-6 left-6 bg-brand-sage/10 backdrop-blur-md border border-brand-sage/20 text-brand-sage px-3 py-1 rounded-lg text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 bg-brand-sage/10 backdrop-blur-md border border-brand-sage/20 text-brand-sage px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-[8px] sm:text-[10px] font-bold tracking-widest uppercase lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                         Architected
                                       </div>
                                     </>
                                   ) : isGeneratingThis ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                      <div className="relative">
-                                        <Loader2 className="w-12 h-12 text-brand-sage animate-spin mb-4" />
+                                    <div className="flex flex-col items-center justify-center px-4 text-center">
+                                      <div className="relative mb-3 sm:mb-4">
+                                        <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 text-brand-sage animate-spin" />
                                         <div className="absolute inset-0 blur-xl bg-brand-sage/20 rounded-full animate-pulse"></div>
                                       </div>
-                                      <span className="text-xs font-bold text-brand-sage tracking-widest uppercase animate-pulse font-display">Simulating Explosion...</span>
+                                      <span className="text-[10px] sm:text-xs font-bold text-brand-sage tracking-widest uppercase animate-pulse font-display">Simulating Explosion...</span>
                                     </div>
                                   ) : (
                                     <div className="flex flex-col items-center justify-center text-neutral-200">
-                                      <Layers className="w-12 h-12 mb-4 opacity-20" />
-                                      <span className="text-xs font-bold tracking-widest uppercase font-display opacity-30">Painting soon</span>
+                                      <Layers className="w-8 h-8 sm:w-12 sm:h-12 mb-3 sm:mb-4 opacity-20" />
+                                      <span className="text-[10px] sm:text-xs font-bold tracking-widest uppercase font-display opacity-30">Waiting...</span>
                                     </div>
                                   )}
                                 </div>
@@ -994,19 +994,19 @@ ABSOLUTE RULE - NO TEXT:
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-brand-paper rounded-[2.5rem] shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-neutral-200/50"
             >
-              <div className="px-8 py-6 border-b border-neutral-200/60 flex justify-between items-center bg-brand-sand">
+              <div className="px-5 sm:px-8 py-4 sm:py-6 border-b border-neutral-200/60 flex justify-between items-center bg-brand-sand shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="bg-brand-sage p-2 rounded-lg text-white">
-                    <Tag className="w-4 h-4"/>
+                    <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4"/>
                   </div>
-                  <h3 className="text-xl font-bold font-display text-neutral-900">精密标注编辑器</h3>
+                  <h3 className="text-lg sm:text-xl font-bold font-display text-neutral-900">精密标注编辑器</h3>
                 </div>
-                <button onClick={() => setEditingLabel(null)} className="p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 rounded-xl transition-all"><X className="w-6 h-6"/></button>
+                <button onClick={() => setEditingLabel(null)} className="p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 rounded-lg sm:rounded-xl transition-all"><X className="w-5 h-5 sm:w-6 sm:h-6"/></button>
               </div>
-              <div className="p-10 overflow-y-auto flex flex-col xl:flex-row gap-12 bg-brand-paper">
-                 <div className="w-full xl:w-3/5 flex items-center justify-center bg-brand-sand rounded-[2rem] border border-neutral-200/60 shadow-inner p-6">
+              <div className="p-4 sm:p-6 lg:p-10 overflow-y-auto flex flex-col lg:flex-row gap-6 sm:gap-10 LG:gap-12 bg-brand-paper">
+                 <div className="w-full lg:w-3/5 flex items-center justify-center bg-brand-sand rounded-2xl sm:rounded-[2rem] border border-neutral-200/60 shadow-inner p-4 sm:p-6">
                     <div 
-                      className="relative w-full max-h-[65vh] @container flex items-center justify-center shadow-2xl rounded-2xl overflow-hidden"
+                      className="relative w-full max-h-[50vh] lg:max-h-[65vh] @container flex items-center justify-center shadow-2xl rounded-xl sm:rounded-2xl overflow-hidden"
                       style={{ aspectRatio: editingLabel.ratio.replace(':', '/') }}
                     >
                       <img src={editingLabel.url} className="absolute inset-0 w-full h-full object-contain" />
@@ -1161,8 +1161,8 @@ ABSOLUTE RULE - NO TEXT:
                     </div>
                  </div>
               </div>
-              <div className="px-10 py-8 border-t border-neutral-200/60 flex justify-end gap-4 bg-brand-sand">
-                <button onClick={() => setEditingLabel(null)} className="px-8 py-3.5 text-neutral-500 hover:text-neutral-900 font-bold text-sm transition-all">DISCARD</button>
+              <div className="px-5 sm:px-10 py-5 sm:py-8 border-t border-neutral-200/60 flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 bg-brand-sand shrink-0">
+                <button onClick={() => setEditingLabel(null)} className="px-8 py-3.5 text-neutral-500 hover:text-neutral-900 font-bold text-xs sm:text-sm transition-all uppercase tracking-widest">DISCARD</button>
                 <button 
                   onClick={() => {
                     setLayersData(prev => ({
@@ -1187,7 +1187,7 @@ ABSOLUTE RULE - NO TEXT:
                     }));
                     setEditingLabel(null);
                   }} 
-                  className="px-10 py-3.5 bg-brand-sage text-white rounded-[1.25rem] font-bold text-sm hover:translate-y-[-2px] hover:shadow-xl hover:shadow-brand-sage/30 active:scale-[0.98] transition-all shadow-lg shadow-brand-sage/20 uppercase tracking-widest font-display"
+                  className="px-8 sm:px-10 py-3.5 sm:py-4 bg-brand-sage text-white rounded-xl sm:rounded-[1.25rem] font-bold text-xs sm:text-sm hover:translate-y-[-2px] hover:shadow-xl hover:shadow-brand-sage/30 active:scale-[0.98] transition-all shadow-lg shadow-brand-sage/20 uppercase tracking-widest font-display"
                 >
                   Confirm & Apply
                 </button>

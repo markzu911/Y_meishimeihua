@@ -94,8 +94,8 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-brand-paper relative">
-      {/* Sidebar */}
-      <div className="w-64 bg-brand-sand border-r border-neutral-200/60 flex flex-col relative z-10">
+      {/* Sidebar for Desktop / Mobile Header */}
+      <div className="hidden lg:flex w-64 bg-brand-sand border-r border-neutral-200/60 flex-col relative z-20 shrink-0">
         <div className="h-20 flex items-center px-8 border-b border-neutral-200/60">
           <h1 className="text-2xl font-bold text-neutral-900 tracking-tight font-display">AI 美食工坊</h1>
         </div>
@@ -129,59 +129,99 @@ export default function App() {
         </nav>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden relative">
-        <AnimatePresence mode="wait">
-          {activeTab === 'beautify' && (
-            <motion.div
-              key="beautify"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <Beautify saasData={saasData} />
-            </motion.div>
-          )}
-          {activeTab === 'explosion' && (
-            <motion.div
-              key="explosion"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <Explosion saasData={saasData} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Top Right Corner - Points Display (Ensured on top) */}
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-neutral-200/60 flex items-center justify-between px-6 z-50">
+        <h1 className="text-xl font-bold text-neutral-900 tracking-tight font-display">AI 美食工坊</h1>
         {saasData && (
-          <div className="absolute top-6 right-8 z-[9999] pointer-events-auto">
-            <div className="bg-white/95 backdrop-blur-md shadow-xl shadow-neutral-200/50 border border-brand-amber/10 pl-3 pr-5 py-2.5 rounded-2xl flex items-center gap-4 transition-all hover:scale-105 hover:shadow-2xl group">
-              <div 
-                className={`p-2 rounded-xl transition-all duration-500 ${points !== null ? 'bg-brand-amber/10 text-brand-amber shadow-inner' : 'bg-neutral-100 text-neutral-400'}`}
-                onClick={() => saasData && fetchPoints(saasData.userId, saasData.toolId)}
-                title="点击刷新积分"
-              >
-                <Coins className={`w-5 h-5 ${points !== null && points > 0 ? 'animate-pulse' : ''} group-hover:rotate-12 transition-transform`} />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-neutral-400 font-bold leading-none mb-1 uppercase tracking-[0.15em] font-display">Balance</span>
-                <span className="text-base font-bold text-neutral-900 leading-none">
-                  {points !== null ? (
-                    <span className="text-brand-amber">{points}</span>
-                  ) : (
-                    <span className="text-neutral-300 animate-pulse italic font-medium">pending</span>
-                  )}
-                </span>
-              </div>
-            </div>
+          <div 
+            className="flex items-center gap-1.5 bg-brand-amber/10 px-3 py-1.5 rounded-full border border-brand-amber/10 active:scale-95 transition-transform"
+            onClick={() => saasData && fetchPoints(saasData.userId, saasData.toolId)}
+          >
+            <Coins className="w-3.5 h-3.5 text-brand-amber" />
+            <span className="text-xs font-bold text-brand-amber leading-none">{points !== null ? points : '...'}</span>
           </div>
         )}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-0 relative">
+        <div className="flex-1 relative pt-16 lg:pt-0">
+          <AnimatePresence mode="wait">
+            {activeTab === 'beautify' && (
+              <motion.div
+                key="beautify"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="absolute inset-0 overflow-y-auto"
+              >
+                <Beautify saasData={saasData} />
+              </motion.div>
+            )}
+            {activeTab === 'explosion' && (
+              <motion.div
+                key="explosion"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="absolute inset-0 overflow-y-auto"
+              >
+                <Explosion saasData={saasData} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Desktop Top Right Corner - Points Display */}
+          {saasData && (
+            <div className="hidden lg:block absolute top-6 right-8 z-[9999] pointer-events-auto">
+              <div className="bg-white/95 backdrop-blur-md shadow-xl shadow-neutral-200/50 border border-brand-amber/10 pl-3 pr-5 py-2.5 rounded-2xl flex items-center gap-4 transition-all hover:scale-105 hover:shadow-2xl group">
+                <div 
+                  className={`p-2 rounded-xl transition-all duration-500 ${points !== null ? 'bg-brand-amber/10 text-brand-amber shadow-inner' : 'bg-neutral-100 text-neutral-400'}`}
+                  onClick={() => saasData && fetchPoints(saasData.userId, saasData.toolId)}
+                  title="点击刷新积分"
+                >
+                  <Coins className={`w-5 h-5 ${points !== null && points > 0 ? 'animate-pulse' : ''} group-hover:rotate-12 transition-transform`} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-neutral-400 font-bold leading-none mb-1 uppercase tracking-[0.15em] font-display">Balance</span>
+                  <span className="text-base font-bold text-neutral-900 leading-none">
+                    {points !== null ? (
+                      <span className="text-brand-amber">{points}</span>
+                    ) : (
+                      <span className="text-neutral-300 animate-pulse italic font-medium">pending</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Bottom Navigation */}
+        <div className="lg:hidden h-[72px] bg-white border-t border-neutral-200/60 pb-safe z-50">
+          <div className="grid grid-cols-2 h-full">
+            <button
+              onClick={() => setActiveTab('beautify')}
+              className={`flex flex-col items-center justify-center gap-1.5 transition-colors ${
+                activeTab === 'beautify' ? 'text-brand-sage' : 'text-neutral-400'
+              }`}
+            >
+              <Wand2 className={`w-6 h-6 ${activeTab === 'beautify' ? 'fill-brand-sage/10' : ''}`} />
+              <span className="text-[10px] font-bold tracking-wider">美化</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('explosion')}
+              className={`flex flex-col items-center justify-center gap-1.5 transition-colors ${
+                activeTab === 'explosion' ? 'text-brand-sage' : 'text-neutral-400'
+              }`}
+            >
+              <Layers className={`w-6 h-6 ${activeTab === 'explosion' ? 'fill-brand-sage/10' : ''}`} />
+              <span className="text-[10px] font-bold tracking-wider">爆炸图</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
