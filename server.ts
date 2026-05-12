@@ -22,7 +22,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '50mb' }));
+  app.use(express.json({ limit: '100mb' }));
+  app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -44,13 +45,16 @@ async function startServer() {
         method: req.method,
         url: targetUrl,
         data: req.body,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
       });
       console.log(`Response from ${targetPath}:`, JSON.stringify(response.data).substring(0, 500));
       res.status(response.status).json(response.data);
     } catch (error: any) {
       console.error(`Error from ${targetPath}:`, error?.response?.data || error.message);
-      res.status(500).json({ error: "代理转发失败" });
+      const status = error?.response?.status || 500;
+      res.status(status).json(error?.response?.data || { error: "代理转发失败" });
     }
   };
 

@@ -46,11 +46,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 4. /api/tool/* and /api/upload/* Proxy
     if (path.startsWith('/api/tool/') || path.startsWith('/api/upload/')) {
       const targetUrl = `http://aibigtree.com${path}`;
+      
+      // Log for debugging
+      console.log(`Proxying ${req.method} to ${targetUrl}, body size: ${req.body ? JSON.stringify(req.body).length : 0}`);
+
       const response = await axios({
         method: req.method,
         url: targetUrl,
         data: req.body,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
       });
       return res.status(response.status).json(response.data);
     }
