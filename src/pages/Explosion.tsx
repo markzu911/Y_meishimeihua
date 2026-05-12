@@ -242,6 +242,36 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
     });
   };
 
+  const compressBase64 = (base64: string, maxSide = 1600, quality = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = base64;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxSide || height > maxSide) {
+          if (width > height) {
+            height = (height / width) * maxSide;
+            width = maxSide;
+          } else {
+            width = (width / height) * maxSide;
+            height = maxSide;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context failed'));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+    });
+  };
+
   const generateImages = async () => {
     if (selectedImages.length === 0 || selectedRatios.length === 0) return;
 
@@ -461,15 +491,20 @@ ABSOLUTE RULE - NO TEXT:
           const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
           window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
 
-          // Upload generated results to SaaS
+          // Upload generated results to SaaS with compression
           newResults.forEach(res => {
-            Object.values(res).forEach(url => {
+            Object.values(res).forEach(async (url) => {
               if (url) {
-                fetch('/api/upload/image', {
-                   method: 'POST',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({ userId: saasData.userId, base64: url, source: 'result' })
-                }).catch(e => console.error("SaaS Upload Error", e));
+                try {
+                  const compressed = await compressBase64(url);
+                  fetch('/api/upload/image', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ userId: saasData.userId, base64: compressed, source: 'result' })
+                  }).catch(e => console.error("SaaS Upload Error", e));
+                } catch (e) {
+                  console.error("Compression error for result", e);
+                }
               }
             });
           });
