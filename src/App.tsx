@@ -14,7 +14,7 @@ export interface SaasData {
 
 const extractPoints = (data: any): number | null => {
   if (!data) return null;
-  const keys = ['points', 'balance', 'remain', 'credit', 'credits', 'left', 'currentIntegral'];
+  const keys = ['points', 'balance', 'remain', 'credit', 'credits', 'left', 'currentIntegral', 'integral'];
   for (const obj of [data, data.data]) {
     if (!obj) continue;
     for (const key of keys) {

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Image as ImageIcon, Loader2, Layers, Download, X, Plus, ArrowLeft, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Gallery from '../components/Gallery';
 import { SaasData } from '../App';
 
 const RATIOS = [
@@ -996,7 +997,7 @@ ABSOLUTE RULE - NO TEXT:
               )}
             </div>
           </div>
-
+          <Gallery saasData={saasData} />
         </div>
       </main>
 
