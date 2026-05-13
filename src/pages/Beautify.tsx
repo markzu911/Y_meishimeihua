@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, Loader2, Wand2, Download, X, Plus, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import Gallery from '../components/Gallery';
 import { SaasData } from '../App';
 
 const STYLES = [
@@ -350,7 +349,7 @@ ABSOLUTE RULES:
               body: JSON.stringify({
                 userId: saasData.userId,
                 source: 'result',
-                base64s: allUrls
+                urls: allUrls
               })
             }).catch(uploadErr => console.error("Upload result images error", uploadErr));
           }
@@ -677,7 +676,7 @@ ABSOLUTE RULES:
               )}
             </div>
           </div>
-          <Gallery saasData={saasData} />
+
         </div>
       </main>
 
