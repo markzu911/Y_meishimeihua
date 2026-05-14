@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, Loader2, Wand2, Download, X, Plus, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { saveImageStandard } from '../lib/saas';
 import { SaasData } from '../App';
 
 const STYLES = [
@@ -197,7 +198,6 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
         });
         const verifyResult = await verifyRes.json();
         
-        // Ensure points always reflect latest verified amount
         const verifyPts = verifyResult?.currentIntegral ?? verifyResult?.points ?? verifyResult?.balance ?? verifyResult?.remain ?? verifyResult?.data?.balance ?? verifyResult?.data?.points ?? verifyResult?.data?.currentIntegral;
         if (verifyPts !== undefined && verifyPts !== null) {
           window.dispatchEvent(new CustomEvent('update_points', { detail: { points: verifyPts } }));
@@ -320,49 +320,20 @@ ABSOLUTE RULES:
 
           newResults[i] = { ...newResults[i], [ratio]: generatedUrl };
           setResultImages([...newResults]);
-        }
-      }
 
-      if (saasData && newResults.some(res => Object.values(res).some(url => url !== null))) {
-        // Use backend-driven save which includes points consumption as per requirements
-        const allUrls: string[] = [];
-        newResults.forEach(res => {
-          Object.values(res).forEach(url => {
-            if (typeof url === 'string') allUrls.push(url);
-          });
-        });
-
-        if (allUrls.length > 0) {
-          // Use for...of for sequential and reliable saving as per recommendations
-          const saveImages = async () => {
-            for (let i = 0; i < allUrls.length; i++) {
-              const url = allUrls[i];
-              try {
-                const saveRes = await fetch('/api/save-result', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId: saasData.userId,
-                    toolId: saasData.toolId,
-                    imageUrl: url,
-                    fileName: `beautify-${Date.now()}-${i + 1}.png`
-                  })
-                });
-                const saveData = await saveRes.json();
-                if (saveData.success) {
-                  const pts = saveData?.currentIntegral ?? saveData?.data?.currentIntegral;
-                  if (pts !== undefined) {
-                    window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
-                  }
-                } else {
-                  console.error("Save image failed:", saveData.message);
-                }
-              } catch (err) {
-                console.error("Save result error:", err);
+          // Standard Save Flow for this specific image result
+          if (saasData) {
+            saveImageStandard({
+              userId: saasData.userId,
+              toolId: saasData.toolId,
+              imageUrl: generatedUrl,
+              fileName: `beautify-${Date.now()}-${i + 1}.png`
+            }).then(saveRes => {
+              if (saveRes.success && saveRes.currentIntegral !== undefined) {
+                window.dispatchEvent(new CustomEvent('update_points', { detail: { points: saveRes.currentIntegral } }));
               }
-            }
-          };
-          saveImages();
+            }).catch(err => console.error("Save image failed:", err));
+          }
         }
       }
 

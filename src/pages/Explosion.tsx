@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Image as ImageIcon, Loader2, Layers, Download, X, Plus, ArrowLeft, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { saveImageStandard } from '../lib/saas';
 import { SaasData } from '../App';
 
 const RATIOS = [
@@ -254,7 +255,6 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
         });
         const verifyResult = await verifyRes.json();
         
-        // Ensure points always reflect latest verified amount
         const verifyPts = verifyResult?.currentIntegral ?? verifyResult?.points ?? verifyResult?.balance ?? verifyResult?.remain ?? verifyResult?.data?.balance ?? verifyResult?.data?.points ?? verifyResult?.data?.currentIntegral;
         if (verifyPts !== undefined && verifyPts !== null) {
           window.dispatchEvent(new CustomEvent('update_points', { detail: { points: verifyPts } }));
@@ -320,53 +320,6 @@ ABSOLUTE RULE - NO TEXT:
           
           setGeneratingRatio(ratio);
           
-          // Clear old layers data for this specific generation
-          setLayersData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDishNamesData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDishNameYData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDishNameSizeData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setLayerNameSizeData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDefaultLayersData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDefaultDishNamesData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDefaultDishNameYData(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-          setDetectingLayers(prev => {
-            const next = { ...prev };
-            delete next[`${i}-${ratio}`];
-            return next;
-          });
-
           let generatedUrl = null;
           let retries = 3;
           let delay = 2000;
@@ -434,6 +387,20 @@ ABSOLUTE RULE - NO TEXT:
             return next;
           });
 
+          // Standard Save Flow for this specific image result
+          if (saasData) {
+            saveImageStandard({
+              userId: saasData.userId,
+              toolId: saasData.toolId,
+              imageUrl: generatedUrl,
+              fileName: `explosion-${Date.now()}-${i + 1}.png`
+            }).then(saveRes => {
+              if (saveRes.success && saveRes.currentIntegral !== undefined) {
+                window.dispatchEvent(new CustomEvent('update_points', { detail: { points: saveRes.currentIntegral } }));
+              }
+            }).catch(err => console.error("Save image failed:", err));
+          }
+
           setDetectingLayers(prev => ({ ...prev, [`${i}-${ratio}`]: true }));
           try {
             const detected = await detectLayers(generatedUrl);
@@ -447,49 +414,6 @@ ABSOLUTE RULE - NO TEXT:
           } finally {
             setDetectingLayers(prev => ({ ...prev, [`${i}-${ratio}`]: false }));
           }
-        }
-      }
-
-      if (saasData && newResults.some(res => Object.values(res).some(url => url !== null))) {
-        // Use backend-driven save which includes points consumption as per requirements
-        const allUrls: string[] = [];
-        newResults.forEach(res => {
-          Object.values(res).forEach(url => {
-            if (typeof url === 'string') allUrls.push(url);
-          });
-        });
-
-        if (allUrls.length > 0) {
-          // Use for...of for sequential and reliable saving as per recommendations
-          const saveImages = async () => {
-            for (let i = 0; i < allUrls.length; i++) {
-              const url = allUrls[i];
-              try {
-                const saveRes = await fetch('/api/save-result', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId: saasData.userId,
-                    toolId: saasData.toolId,
-                    imageUrl: url,
-                    fileName: `explosion-${Date.now()}-${i + 1}.png`
-                  })
-                });
-                const saveData = await saveRes.json();
-                if (saveData.success) {
-                  const pts = saveData?.currentIntegral ?? saveData?.data?.currentIntegral;
-                  if (pts !== undefined) {
-                    window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
-                  }
-                } else {
-                  console.error("Save image failed:", saveData.message);
-                }
-              } catch (err) {
-                console.error("Save result error:", err);
-              }
-            }
-          };
-          saveImages();
         }
       }
 
