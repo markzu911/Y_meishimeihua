@@ -333,30 +333,36 @@ ABSOLUTE RULES:
         });
 
         if (allUrls.length > 0) {
-          allUrls.forEach(async (url, idx) => {
-            try {
-              const saveRes = await fetch('/api/save-result', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  userId: saasData.userId,
-                  toolId: saasData.toolId,
-                  imageUrl: url,
-                  fileName: `beautify-${Date.now()}-${idx + 1}.png`
-                })
-              });
-              const saveData = await saveRes.json();
-              if (saveData.success) {
-                // If the backend returns currentIntegral, update points display
-                const pts = saveData?.currentIntegral ?? saveData?.data?.currentIntegral;
-                if (pts !== undefined) {
-                  window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
+          // Use for...of for sequential and reliable saving as per recommendations
+          const saveImages = async () => {
+            for (let i = 0; i < allUrls.length; i++) {
+              const url = allUrls[i];
+              try {
+                const saveRes = await fetch('/api/save-result', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: saasData.userId,
+                    toolId: saasData.toolId,
+                    imageUrl: url,
+                    fileName: `beautify-${Date.now()}-${i + 1}.png`
+                  })
+                });
+                const saveData = await saveRes.json();
+                if (saveData.success) {
+                  const pts = saveData?.currentIntegral ?? saveData?.data?.currentIntegral;
+                  if (pts !== undefined) {
+                    window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
+                  }
+                } else {
+                  console.error("Save image failed:", saveData.message);
                 }
+              } catch (err) {
+                console.error("Save result error:", err);
               }
-            } catch (err) {
-              console.error("Save result error:", err);
             }
-          });
+          };
+          saveImages();
         }
       }
 

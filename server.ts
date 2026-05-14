@@ -79,11 +79,8 @@ async function startServer() {
     }
 
     try {
-      // 1. Consume Points
-      const consumeRes = await axios.post('http://aibigtree.com/api/tool/consume', { userId, toolId });
-      const consume = await readSaasResponse(consumeRes);
-
-      // 2. Prepare & Normalize Image Data
+      // 1. Prepare & Normalize Image Data FIRST
+      // This ensures we have a valid processed image BEFORE we consume points
       let rawImageBuffer: Buffer;
       if (imageUrl.startsWith('data:')) {
         const base64Data = imageUrl.split(',')[1];
@@ -93,8 +90,7 @@ async function startServer() {
         rawImageBuffer = Buffer.from(imageGet.data);
       }
 
-      // Normalize with sharp: auto-rotate, limit size to 3072px, strip EXIF, convert to high-quality jpeg/png
-      // Using PNG as default for these food generation tools to preserve quality/transparency if any
+      // Normalize with sharp: auto-rotate, limit size to 3072px, strip EXIF
       const normalizedImage = await sharp(rawImageBuffer, { failOn: 'none' })
         .rotate()
         .resize({
@@ -103,10 +99,14 @@ async function startServer() {
           fit: 'inside',
           withoutEnlargement: true
         })
-        .png({ compressionLevel: 9, quality: 90 }) // Good balance for SaaS storage
+        .png({ compressionLevel: 9, quality: 90 })
         .toBuffer();
 
       const finalMimeType = 'image/png';
+
+      // 2. Consume Points (Only after processing successful)
+      const consumeRes = await axios.post('http://aibigtree.com/api/tool/consume', { userId, toolId });
+      const consume = await readSaasResponse(consumeRes);
 
       // 3. Get Direct Token
       const tokenRes = await axios.post('http://aibigtree.com/api/upload/direct-token', {

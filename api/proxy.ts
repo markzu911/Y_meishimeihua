@@ -52,21 +52,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
 
-      // 1. Consume Points
+      // 1. Prepare Image Data (Support base64 or remote URL)
+      let imageBuffer: Buffer;
+      try {
+        if (imageUrl.startsWith('data:')) {
+          const base64Data = imageUrl.split(',')[1];
+          imageBuffer = Buffer.from(base64Data, 'base64');
+        } else {
+          const imageGet = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+          imageBuffer = Buffer.from(imageGet.data);
+        }
+      } catch (err) {
+        return res.status(400).json({ error: 'Failed to fetch image data' });
+      }
+
+      // 2. Consume Points (Only after image data is ready)
       const consumeRes = await axios.post('http://aibigtree.com/api/tool/consume', { userId, toolId });
       const consume = consumeRes.data;
       if (!consume.success) {
         return res.status(400).json({ error: consume.message || 'Consume failed' });
-      }
-
-      // 2. Prepare Image Data (Support base64 or remote URL)
-      let imageBuffer: Buffer;
-      if (imageUrl.startsWith('data:')) {
-        const base64Data = imageUrl.split(',')[1];
-        imageBuffer = Buffer.from(base64Data, 'base64');
-      } else {
-        const imageGet = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        imageBuffer = Buffer.from(imageGet.data);
       }
 
       // 3. Get Direct Token
