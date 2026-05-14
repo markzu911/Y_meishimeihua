@@ -324,37 +324,38 @@ ABSOLUTE RULES:
       }
 
       if (saasData && newResults.some(res => Object.values(res).some(url => url !== null))) {
-        try {
-          const consumeRes = await fetch('/api/tool/consume', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
+        // Use backend-driven save which includes points consumption as per requirements
+        const allUrls: string[] = [];
+        newResults.forEach(res => {
+          Object.values(res).forEach(url => {
+            if (typeof url === 'string') allUrls.push(url);
           });
-          const consumeData = await consumeRes.json();
-          const pts = consumeData?.currentIntegral ?? consumeData?.points ?? consumeData?.balance ?? consumeData?.remain ?? consumeData?.data?.balance ?? consumeData?.data?.points ?? consumeData?.data?.currentIntegral;
-          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
+        });
 
-          // Upload generated images to SaaS records
-          const allUrls: string[] = [];
-          newResults.forEach(res => {
-            Object.values(res).forEach(url => {
-              if (typeof url === 'string') allUrls.push(url);
-            });
-          });
-
-          if (allUrls.length > 0) {
-            await fetch('/api/upload/image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: saasData.userId,
-                source: 'result',
-                urls: allUrls
-              })
-            }).catch(uploadErr => console.error("Upload result images error", uploadErr));
+        if (allUrls.length > 0) {
+          for (const url of allUrls) {
+            try {
+              const saveRes = await fetch('/api/save-result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: saasData.userId,
+                  toolId: saasData.toolId,
+                  imageUrl: url
+                })
+              });
+              const saveData = await saveRes.json();
+              if (saveData.success) {
+                // If the backend returns currentIntegral, update points display
+                const pts = saveData?.currentIntegral ?? saveData?.data?.currentIntegral;
+                if (pts !== undefined) {
+                  window.dispatchEvent(new CustomEvent('update_points', { detail: { points: pts } }));
+                }
+              }
+            } catch (err) {
+              console.error("Save result error:", err);
+            }
           }
-        } catch (e) {
-          console.error("Consume error", e);
         }
       }
 

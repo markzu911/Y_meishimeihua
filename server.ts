@@ -62,6 +62,58 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  app.post("/api/save-result", async (req, res) => {
+    const { userId, toolId, imageUrl } = req.body;
+    if (!userId || !toolId || !imageUrl) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    try {
+      // 1. Consume Points
+      const consumeRes = await axios.post('http://aibigtree.com/api/tool/consume', { userId, toolId });
+      if (!consumeRes.data.success) {
+        return res.status(400).json({ error: consumeRes.data.message || 'Consume failed' });
+      }
+
+      // 2. Get Direct Token
+      const tokenRes = await axios.post('http://aibigtree.com/api/upload/direct-token', {
+        userId, toolId, source: 'result', mimeType: 'image/png'
+      });
+      if (!tokenRes.data.success) {
+        return res.status(500).json({ error: 'Failed to get upload token' });
+      }
+
+      // 3. Prepare Image Data
+      let imageBuffer: Buffer;
+      if (imageUrl.startsWith('data:')) {
+        const base64Data = imageUrl.split(',')[1];
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        const imageGet = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        imageBuffer = Buffer.from(imageGet.data);
+      }
+
+      // 4. PUT to OSS
+      const { uploadUrl, headers, objectKey } = tokenRes.data;
+      await axios.put(uploadUrl, imageBuffer, {
+        headers: {
+          ...headers,
+          'Content-Length': imageBuffer.length
+        }
+      });
+
+      // 5. Commit to Records
+      const commitRes = await axios.post('http://aibigtree.com/api/upload/commit', {
+        userId, toolId, source: 'result', objectKey, fileSize: imageBuffer.length
+      });
+
+      res.status(200).json(commitRes.data);
+    } catch (error: any) {
+      console.error('Save result error:', error?.response?.data || error.message);
+      res.status(500).json({ error: 'Internal Server Error', details: error?.response?.data || error.message });
+    }
+  });
+
   app.post("/api/gemini", async (req, res) => {
     if (!ai) {
       ai = getAI();
