@@ -333,7 +333,7 @@ ABSOLUTE RULES:
         });
 
         if (allUrls.length > 0) {
-          for (const url of allUrls) {
+          allUrls.forEach(async (url, idx) => {
             try {
               const saveRes = await fetch('/api/save-result', {
                 method: 'POST',
@@ -341,7 +341,8 @@ ABSOLUTE RULES:
                 body: JSON.stringify({
                   userId: saasData.userId,
                   toolId: saasData.toolId,
-                  imageUrl: url
+                  imageUrl: url,
+                  fileName: `beautify-${Date.now()}-${idx + 1}.png`
                 })
               });
               const saveData = await saveRes.json();
@@ -355,7 +356,7 @@ ABSOLUTE RULES:
             } catch (err) {
               console.error("Save result error:", err);
             }
-          }
+          });
         }
       }
 

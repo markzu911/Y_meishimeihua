@@ -47,26 +47,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (path.startsWith('/api/save-result')) {
       if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
       
-      const { userId, toolId, imageUrl } = req.body;
+      const { userId, toolId, imageUrl, fileName = 'result.png' } = req.body;
       if (!userId || !toolId || !imageUrl) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
 
       // 1. Consume Points
       const consumeRes = await axios.post('http://aibigtree.com/api/tool/consume', { userId, toolId });
-      if (!consumeRes.data.success) {
-        return res.status(400).json({ error: consumeRes.data.message || 'Consume failed' });
+      const consume = consumeRes.data;
+      if (!consume.success) {
+        return res.status(400).json({ error: consume.message || 'Consume failed' });
       }
 
-      // 2. Get Direct Token
-      const tokenRes = await axios.post('http://aibigtree.com/api/upload/direct-token', {
-        userId, toolId, source: 'result', mimeType: 'image/png'
-      });
-      if (!tokenRes.data.success) {
-        return res.status(500).json({ error: 'Failed to get upload token' });
-      }
-
-      // 3. Prepare Image Data (Support base64 or remote URL)
+      // 2. Prepare Image Data (Support base64 or remote URL)
       let imageBuffer: Buffer;
       if (imageUrl.startsWith('data:')) {
         const base64Data = imageUrl.split(',')[1];
@@ -76,8 +69,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         imageBuffer = Buffer.from(imageGet.data);
       }
 
+      // 3. Get Direct Token
+      const tokenRes = await axios.post('http://aibigtree.com/api/upload/direct-token', {
+        userId, toolId, source: 'result', mimeType: 'image/png', fileName, fileSize: imageBuffer.length
+      });
+      const token = tokenRes.data;
+      if (!token.success) {
+        return res.status(500).json({ error: 'Failed to get upload token' });
+      }
+
       // 4. PUT to OSS
-      const { uploadUrl, headers, objectKey } = tokenRes.data;
+      const { uploadUrl, headers, objectKey } = token;
       await axios.put(uploadUrl, imageBuffer, {
         headers: {
           ...headers,
@@ -89,8 +91,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const commitRes = await axios.post('http://aibigtree.com/api/upload/commit', {
         userId, toolId, source: 'result', objectKey, fileSize: imageBuffer.length
       });
+      const commit = commitRes.data;
 
-      return res.status(200).json(commitRes.data);
+      return res.status(200).json({
+        success: true,
+        currentIntegral: consume.currentIntegral || consume.data?.currentIntegral,
+        image: commit.image || {
+          recordId: commit.recordId,
+          url: commit.url,
+          fileName: commit.fileName,
+          savedToRecords: true
+        }
+      });
     }
 
     // 5. SaaS API Proxy

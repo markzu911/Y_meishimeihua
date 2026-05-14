@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import axios from "axios";
 import path from "path";
+import sharp from "sharp";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
@@ -62,8 +63,17 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  // Helper to read SaaS JSON response robustly as per spec
+  async function readSaasResponse(res: any) {
+    const data = res.data;
+    if (res.status !== 200 || data.success === false) {
+      throw new Error(data.error || data.message || `SaaS Request Failed: ${res.status}`);
+    }
+    return data;
+  }
+
   app.post("/api/save-result", async (req, res) => {
-    const { userId, toolId, imageUrl } = req.body;
+    const { userId, toolId, imageUrl, fileName = 'result.png' } = req.body;
     if (!userId || !toolId || !imageUrl) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
@@ -71,46 +81,82 @@ async function startServer() {
     try {
       // 1. Consume Points
       const consumeRes = await axios.post('http://aibigtree.com/api/tool/consume', { userId, toolId });
-      if (!consumeRes.data.success) {
-        return res.status(400).json({ error: consumeRes.data.message || 'Consume failed' });
-      }
+      const consume = await readSaasResponse(consumeRes);
 
-      // 2. Get Direct Token
-      const tokenRes = await axios.post('http://aibigtree.com/api/upload/direct-token', {
-        userId, toolId, source: 'result', mimeType: 'image/png'
-      });
-      if (!tokenRes.data.success) {
-        return res.status(500).json({ error: 'Failed to get upload token' });
-      }
-
-      // 3. Prepare Image Data
-      let imageBuffer: Buffer;
+      // 2. Prepare & Normalize Image Data
+      let rawImageBuffer: Buffer;
       if (imageUrl.startsWith('data:')) {
         const base64Data = imageUrl.split(',')[1];
-        imageBuffer = Buffer.from(base64Data, 'base64');
+        rawImageBuffer = Buffer.from(base64Data, 'base64');
       } else {
         const imageGet = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        imageBuffer = Buffer.from(imageGet.data);
+        rawImageBuffer = Buffer.from(imageGet.data);
       }
 
+      // Normalize with sharp: auto-rotate, limit size to 3072px, strip EXIF, convert to high-quality jpeg/png
+      // Using PNG as default for these food generation tools to preserve quality/transparency if any
+      const normalizedImage = await sharp(rawImageBuffer, { failOn: 'none' })
+        .rotate()
+        .resize({
+          width: 3072,
+          height: 3072,
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .png({ compressionLevel: 9, quality: 90 }) // Good balance for SaaS storage
+        .toBuffer();
+
+      const finalMimeType = 'image/png';
+
+      // 3. Get Direct Token
+      const tokenRes = await axios.post('http://aibigtree.com/api/upload/direct-token', {
+        userId, 
+        toolId, 
+        source: 'result', 
+        mimeType: finalMimeType,
+        fileName: fileName.endsWith('.png') ? fileName : `${fileName}.png`,
+        fileSize: normalizedImage.length
+      });
+      const token = await readSaasResponse(tokenRes);
+
       // 4. PUT to OSS
-      const { uploadUrl, headers, objectKey } = tokenRes.data;
-      await axios.put(uploadUrl, imageBuffer, {
+      const { uploadUrl, headers, objectKey } = token;
+      await axios.put(uploadUrl, normalizedImage, {
         headers: {
           ...headers,
-          'Content-Length': imageBuffer.length
+          'Content-Length': normalizedImage.length
         }
       });
 
       // 5. Commit to Records
       const commitRes = await axios.post('http://aibigtree.com/api/upload/commit', {
-        userId, toolId, source: 'result', objectKey, fileSize: imageBuffer.length
+        userId, 
+        toolId, 
+        source: 'result', 
+        objectKey, 
+        fileSize: normalizedImage.length
       });
+      const commit = await readSaasResponse(commitRes);
 
-      res.status(200).json(commitRes.data);
+      // Return consistent final image data
+      res.status(200).json({
+        success: true,
+        currentIntegral: consume.currentIntegral || consume.data?.currentIntegral,
+        image: commit.image || {
+          recordId: commit.recordId,
+          url: commit.url,
+          fileName: commit.fileName,
+          savedToRecords: true
+        }
+      });
     } catch (error: any) {
-      console.error('Save result error:', error?.response?.data || error.message);
-      res.status(500).json({ error: 'Internal Server Error', details: error?.response?.data || error.message });
+      const errorDetail = error?.response?.data || error.message;
+      console.error('Save result process failed:', errorDetail);
+      res.status(500).json({ 
+        success: false, 
+        error: errorDetail,
+        message: typeof errorDetail === 'string' ? errorDetail : '处理或保存图片失败'
+      });
     }
   });
 
