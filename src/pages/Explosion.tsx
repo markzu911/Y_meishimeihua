@@ -588,6 +588,7 @@ ABSOLUTE RULE - NO TEXT:
 
   const allGenerated = resultImages.length > 0 && resultImages.every(res => selectedRatios.every(r => res[r]));
   const hasResults = resultImages.some(res => Object.values(res).some(url => url !== null));
+  const [editW, editH] = editingLabel ? editingLabel.ratio.split(':').map(Number) : [1, 1];
 
   return (
     <div className="h-full flex flex-col bg-brand-paper text-neutral-900 font-sans selection:bg-brand-sage/20">
@@ -803,25 +804,31 @@ ABSOLUTE RULE - NO TEXT:
                             const isGeneratingThis = generatingIndex === i && generatingRatio === ratio;
                             
                             const [w, h] = ratio.split(':').map(Number);
-                            const aspectRatioStyle = { aspectRatio: `${w}/${h}` };
 
                             return (
                               <div key={ratio} className="flex flex-col w-full items-center">
                                 <div className="text-[9px] sm:text-[10px] font-bold text-neutral-400 mb-3 sm:mb-4 px-3 sm:px-4 py-1 sm:py-1.5 bg-white rounded-full shadow-sm border border-neutral-100 uppercase tracking-[0.2em] font-display w-fit">
                                   {title}
                                 </div>
-                                <div 
-                                  style={aspectRatioStyle} 
-                                  className="relative bg-white rounded-xl sm:rounded-[2rem] border border-neutral-200/50 shadow-xl sm:shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group w-full lg:h-[60vh] lg:max-h-[700px] @container"
-                                >
-                                  {url ? (
-                                    <>
-                                      <img 
-                                        src={url} 
-                                        alt={`Result ${i} ${ratio}`} 
-                                        className="w-full h-full object-contain cursor-zoom-in lg:hover:scale-105 transition-all duration-700 ease-out" 
-                                        onClick={() => setZoomedImage(url)}
-                                      />
+                                <div className="w-full lg:h-[60vh] lg:max-h-[700px] flex items-center justify-center">
+                                  <div 
+                                    style={{
+                                      aspectRatio: `${w}/${h}`,
+                                      width: w >= h ? '100%' : 'auto',
+                                      height: h > w ? '100%' : 'auto',
+                                      maxWidth: '100%',
+                                      maxHeight: '100%',
+                                    }} 
+                                    className="relative bg-white rounded-xl sm:rounded-[2rem] border border-neutral-200/50 shadow-xl sm:shadow-2xl shadow-neutral-200/40 overflow-hidden flex flex-col items-center justify-center group @container"
+                                  >
+                                    {url ? (
+                                      <>
+                                        <img 
+                                          src={url} 
+                                          alt={`Result ${i} ${ratio}`} 
+                                          className="w-full h-full object-cover cursor-zoom-in lg:hover:scale-105 transition-all duration-700 ease-out" 
+                                          onClick={() => setZoomedImage(url)}
+                                        />
                                       {dishNamesData[`${i}-${ratio}`] && (
                                         <div 
                                           className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-10"
@@ -918,7 +925,8 @@ ABSOLUTE RULE - NO TEXT:
                                   )}
                                 </div>
                               </div>
-                            );
+                            </div>
+                          );
                           })}
                         </div>
                       </div>
@@ -956,12 +964,18 @@ ABSOLUTE RULE - NO TEXT:
                 <button onClick={() => setEditingLabel(null)} className="p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 rounded-lg sm:rounded-xl transition-all"><X className="w-5 h-5 sm:w-6 sm:h-6"/></button>
               </div>
               <div className="p-4 sm:p-6 lg:p-10 overflow-y-auto flex flex-col lg:flex-row gap-6 sm:gap-10 LG:gap-12 bg-brand-paper">
-                 <div className="w-full lg:w-3/5 flex items-center justify-center bg-brand-sand rounded-2xl sm:rounded-[2rem] border border-neutral-200/60 shadow-inner p-4 sm:p-6">
+                 <div className="w-full lg:w-3/5 flex items-center justify-center bg-brand-sand rounded-2xl sm:rounded-[2rem] border border-neutral-200/60 shadow-inner p-4 sm:p-6 lg:h-[70vh] lg:max-h-[800px]">
                     <div 
-                      className="relative w-full max-h-[50vh] lg:max-h-[65vh] @container flex items-center justify-center shadow-2xl rounded-xl sm:rounded-2xl overflow-hidden"
-                      style={{ aspectRatio: editingLabel.ratio.replace(':', '/') }}
+                      className="relative @container flex items-center justify-center shadow-2xl rounded-xl sm:rounded-2xl overflow-hidden"
+                      style={{ 
+                        aspectRatio: `${editW}/${editH}`,
+                        width: editW >= editH ? '100%' : 'auto',
+                        height: editH > editW ? '100%' : 'auto',
+                        maxWidth: '100%',
+                        maxHeight: '100%'
+                      }}
                     >
-                      <img src={editingLabel.url} className="absolute inset-0 w-full h-full object-contain" />
+                      <img src={editingLabel.url} className="absolute inset-0 w-full h-full object-cover" />
                       {editingLabel.dishName && (
                         <div 
                           className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-10"
