@@ -486,116 +486,101 @@ export default function App() {
           {/* Main Content Area */}
           <div className="flex-1 flex flex-col min-h-0 relative">
             <div className="flex-1 relative pt-16 lg:pt-0 flex flex-col justify-center bg-neutral-50/30">
-              <AnimatePresence mode="wait">
-                {activeTab === 'choice' && (
-                  <motion.div
-                    key="choice"
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-140px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden self-center my-auto"
-                  >
-                    {/* Chat Header */}
-                    <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-10 h-10 bg-brand-sage text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-sage/10 font-bold">
-                            <Bot className="w-5 h-5" />
+              {mode === 'agent' ? (
+                // Agent Mode: Render a SINGLE persistent card wrapper to guarantee absolutely zero unmounting, flashing, or page flickering.
+                <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-140px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden self-center my-auto relative">
+                  {activeTab === 'choice' && (
+                    <div className="flex flex-col h-full">
+                      {/* Chat Header */}
+                      <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-10 h-10 bg-brand-sage text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-sage/10 font-bold">
+                              <Bot className="w-5 h-5" />
+                            </div>
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-ping"></span>
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
                           </div>
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-ping"></span>
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                          <div>
+                            <h3 className="font-bold text-sm text-neutral-800">AI 美食视觉管家</h3>
+                            <p className="text-[10px] text-neutral-400">正在为您开启专属创作通道</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-sm text-neutral-800">AI 美食视觉管家</h3>
-                          <p className="text-[10px] text-neutral-400">正在为您开启专属创作通道</p>
-                        </div>
+                        <button
+                          onClick={() => setShowLanding(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 hover:bg-white/80 transition-all border border-transparent hover:border-neutral-200/30 active:scale-95 shadow-sm"
+                        >
+                          <Home className="w-3.5 h-3.5" />
+                          <span>返回模式选择</span>
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setShowLanding(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 hover:bg-white/80 transition-all border border-transparent hover:border-neutral-200/30 active:scale-95 shadow-sm"
-                      >
-                        <Home className="w-3.5 h-3.5" />
-                        <span>返回模式选择</span>
-                      </button>
-                    </div>
 
-                    {/* Chat Messages Body */}
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-neutral-50/50">
-                      {choiceMessages.map((msg) => {
-                        const isAssistant = msg.sender === 'assistant';
-                        return (
-                          <motion.div
-                            key={msg.id}
-                            initial={{ opacity: 0, y: 15 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
-                          >
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm text-xs font-bold ${
-                              isAssistant ? 'bg-brand-sage text-white' : 'bg-brand-amber/10 text-brand-amber'
-                            }`}>
-                              {isAssistant ? <Bot className="w-4 h-4" /> : 'ME'}
-                            </div>
-
-                            <div className="flex flex-col max-w-[85%] space-y-2">
-                              <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                                isAssistant 
-                                  ? 'bg-white text-neutral-800 border border-neutral-200/60' 
-                                  : 'bg-brand-sage text-white'
+                      {/* Chat Messages Body */}
+                      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-neutral-50/50">
+                        {choiceMessages.map((msg) => {
+                          const isAssistant = msg.sender === 'assistant';
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
+                            >
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm text-xs font-bold ${
+                                isAssistant ? 'bg-brand-sage text-white' : 'bg-brand-amber/10 text-brand-amber'
                               }`}>
-                                <div className="whitespace-pre-wrap">
-                                  {renderFormattedText(msg.text)}
-                                </div>
+                                {isAssistant ? <Bot className="w-4 h-4" /> : 'ME'}
                               </div>
-                              <span className="text-[9px] text-neutral-400 px-1">
-                                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                      <div ref={choiceEndRef} />
-                    </div>
 
-                    {/* Chat Input Bar */}
-                    <div className="bg-white px-4 py-3.5 border-t border-neutral-200/60 flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={choiceInput}
-                        onChange={(e) => setChoiceInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !isChoiceResponding && handleChoiceSubmit()}
-                        placeholder="请选择（例如：“我要做一键美化” 或直接输入 “1”）..."
-                        className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-sm border-0 focus:ring-2 focus:ring-brand-sage/30 placeholder-neutral-400 focus:outline-none transition-all"
-                        disabled={isChoiceResponding}
-                      />
-                      <button
-                        onClick={handleChoiceSubmit}
-                        disabled={isChoiceResponding || !choiceInput.trim()}
-                        className={`p-3 rounded-xl shadow-lg shadow-brand-sage/15 flex items-center justify-center transition-all active:scale-95 ${
-                          choiceInput.trim() && !isChoiceResponding
-                            ? 'bg-brand-sage text-white hover:bg-brand-sage-dark'
-                            : 'bg-neutral-100 text-neutral-400 shadow-none'
-                        }`}
-                      >
-                        {isChoiceResponding ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
-                      </button>
+                              <div className="flex flex-col max-w-[85%] space-y-2">
+                                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                                  isAssistant 
+                                    ? 'bg-white text-neutral-800 border border-neutral-200/60' 
+                                    : 'bg-brand-sage text-white'
+                                }`}>
+                                  <div className="whitespace-pre-wrap">
+                                    {renderFormattedText(msg.text)}
+                                  </div>
+                                </div>
+                                <span className="text-[9px] text-neutral-400 px-1">
+                                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={choiceEndRef} />
+                      </div>
+
+                      {/* Chat Input Bar */}
+                      <div className="bg-white px-4 py-3.5 border-t border-neutral-200/60 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={choiceInput}
+                          onChange={(e) => setChoiceInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && !isChoiceResponding && handleChoiceSubmit()}
+                          placeholder="请选择（例如：“我要做一键美化” 或直接输入 “1”）..."
+                          className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-sm border-0 focus:ring-2 focus:ring-brand-sage/30 placeholder-neutral-400 focus:outline-none transition-all"
+                          disabled={isChoiceResponding}
+                        />
+                        <button
+                          onClick={handleChoiceSubmit}
+                          disabled={isChoiceResponding || !choiceInput.trim()}
+                          className={`p-3 rounded-xl shadow-lg shadow-brand-sage/15 flex items-center justify-center transition-all active:scale-95 ${
+                            choiceInput.trim() && !isChoiceResponding
+                              ? 'bg-brand-sage text-white hover:bg-brand-sage-dark'
+                              : 'bg-neutral-100 text-neutral-400 shadow-none'
+                          }`}
+                        >
+                          {isChoiceResponding ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </motion.div>
-                )}
-                {activeTab === 'beautify' && (
-                  <motion.div
-                    key="beautify"
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="absolute inset-0 overflow-y-auto"
-                  >
+                  )}
+
+                  {activeTab === 'beautify' && (
                     <Beautify 
                       saasData={saasData} 
                       mode={mode} 
@@ -604,17 +589,9 @@ export default function App() {
                       initialHistory={choiceMessages}
                       onMessagesUpdate={(msgs) => setChoiceMessages(msgs)}
                     />
-                  </motion.div>
-                )}
-                {activeTab === 'explosion' && (
-                  <motion.div
-                    key="explosion"
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="absolute inset-0 overflow-y-auto"
-                  >
+                  )}
+
+                  {activeTab === 'explosion' && (
                     <Explosion 
                       saasData={saasData} 
                       mode={mode} 
@@ -623,9 +600,47 @@ export default function App() {
                       initialHistory={choiceMessages}
                       onMessagesUpdate={(msgs) => setChoiceMessages(msgs)}
                     />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  )}
+                </div>
+              ) : (
+                // Expert Mode: Original workbench layouts with nice entry animations
+                <AnimatePresence mode="wait">
+                  {activeTab === 'beautify' && (
+                    <motion.div
+                      key="beautify"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="absolute inset-0 overflow-y-auto"
+                    >
+                      <Beautify 
+                        saasData={saasData} 
+                        mode={mode} 
+                        setMode={setMode} 
+                        onChangeTab={handleTabChange}
+                      />
+                    </motion.div>
+                  )}
+                  {activeTab === 'explosion' && (
+                    <motion.div
+                      key="explosion"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="absolute inset-0 overflow-y-auto"
+                    >
+                      <Explosion 
+                        saasData={saasData} 
+                        mode={mode} 
+                        setMode={setMode} 
+                        onChangeTab={handleTabChange}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              )}
 
               {/* Desktop Top Right Corner - Points Display */}
               {saasData && activeTab !== 'choice' && (

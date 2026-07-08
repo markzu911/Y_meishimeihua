@@ -98,7 +98,9 @@ export default function Explosion({
   const [chatInput, setChatInput] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
+  const generationPromiseRef = useRef<Promise<void> | null>(null);
 
   // Formatting helper to strip markdown raw tags (like **bold**) and render nicely
   const renderFormattedText = (text: string) => {
@@ -280,6 +282,41 @@ export default function Explosion({
         type: 'text'
       }
     ]);
+
+    if (isGenerating && generationPromiseRef.current) {
+      const isStopIntent = /停|取消|别|不要|stop|cancel|quit|abort|不生/i.test(textToSend);
+      if (isStopIntent) {
+        abortControllerRef.current?.abort();
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-abort-${Date.now()}`,
+            sender: 'assistant',
+            text: '已为您停止当前的生成任务。',
+            timestamp: new Date(),
+            type: 'text'
+          }
+        ]);
+        return;
+      } else {
+        setIsAiResponding(true);
+        const waitId = `wait-${Date.now()}`;
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: waitId,
+            sender: 'assistant',
+            text: '图片生成中，等图片生成结束了再为您解答...',
+            timestamp: new Date(),
+            type: 'text'
+          }
+        ]);
+        try {
+          await generationPromiseRef.current;
+        } catch (e) {}
+        setAgentMessages(prev => prev.filter(m => m.id !== waitId));
+      }
+    }
 
     setIsAiResponding(true);
 
@@ -505,6 +542,7 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
         const res = await fetch("/api/gemini", {
            method: "POST",
            headers: { "Content-Type": "application/json" },
+           signal: abortControllerRef.current?.signal,
            body: JSON.stringify({
               model: "gemini-3-flash-preview",
               payload: {
@@ -711,8 +749,10 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
     });
   };
 
-  const generateImages = async () => {
+  const _generateImagesCore = async () => {
     if (selectedImages.length === 0 || selectedRatios.length === 0) return;
+
+    abortControllerRef.current = new AbortController();
 
     if (saasData) {
       try {
@@ -797,6 +837,7 @@ ABSOLUTE RULE - NO TEXT:
               const res = await fetch("/api/gemini", {
                  method: "POST",
                  headers: { "Content-Type": "application/json" },
+                 signal: abortControllerRef.current?.signal,
                  body: JSON.stringify({
                     model: 'gemini-3.1-flash-image-preview',
                     payload: {
@@ -893,6 +934,12 @@ ABSOLUTE RULE - NO TEXT:
       }
 
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setIsGenerating(false);
+        setGeneratingIndex(-1);
+        setGeneratingRatio(null);
+        return;
+      }
       console.error("Generation error:", err);
       let errorMessage = err.message || "生成图片时出错，请重试。";
       
@@ -908,6 +955,12 @@ ABSOLUTE RULE - NO TEXT:
       setGeneratingIndex(-1);
       setGeneratingRatio(null);
     }
+  };
+
+  const generateImages = () => {
+    const p = _generateImagesCore();
+    generationPromiseRef.current = p;
+    return p;
   };
 
   const downloadImageWithLabels = async (url: string, index: number, ratio: string, customLayers?: Layer[], customDishName?: string) => {
@@ -1065,6 +1118,348 @@ ABSOLUTE RULE - NO TEXT:
   const hasResults = resultImages.some(res => Object.values(res).some(url => url !== null));
   const [editW, editH] = editingLabel ? editingLabel.ratio.split(':').map(Number) : [1, 1];
 
+  if (mode === 'agent') {
+    return (
+      <div className="flex-1 flex flex-col h-full min-h-0 bg-white relative">
+        {/* Hidden file input always in the DOM at the root level so that the ref current is never null */}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleImageSelect} 
+          accept="image/*" 
+          className="hidden" 
+        />
+        
+        {/* Chat Room Header */}
+        <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 bg-brand-sage text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-sage/10 font-bold">
+                <Bot className="w-5 h-5" />
+              </div>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-ping"></span>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-neutral-800">AI 爆炸图视觉大师</h3>
+              <p className="text-[10px] text-neutral-400">为您构建三维层级与图层标签</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={resetAgentFlow} 
+              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+              title="重置对话"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>全新制作</span>
+            </button>
+            <button 
+              onClick={() => onChangeTab?.('choice')} 
+              className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+              title="返回选择"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>返回选择</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Chat Flow Scroll Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-neutral-50/50">
+          {agentMessages.map((msg, index) => {
+            const isAssistant = msg.sender === 'assistant';
+            return (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
+              >
+                {/* Avatar */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm text-xs font-bold ${
+                  isAssistant ? 'bg-brand-sage text-white' : 'bg-brand-amber/10 text-brand-amber'
+                }`}>
+                  {isAssistant ? <Bot className="w-4 h-4" /> : 'ME'}
+                </div>
+
+                {/* Chat Bubble */}
+                <div className="flex flex-col max-w-[85%] space-y-2">
+                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                    isAssistant 
+                      ? msg.type === 'error'
+                        ? 'bg-red-50 text-red-800 border border-red-100'
+                        : 'bg-white text-neutral-800 border border-neutral-200/60' 
+                      : 'bg-brand-sage text-white'
+                  }`}>
+                    {/* Render text */}
+                    <div className="whitespace-pre-wrap">
+                      {renderFormattedText(msg.text)}
+                    </div>
+
+                    {/* Interactive Elements */}
+                    {isAssistant && msg.type === 'upload' && (
+                      <div className="mt-4">
+                        <div 
+                          onClick={() => !isGenerating && fileInputRef.current?.click()}
+                          className="border-2 border-dashed border-neutral-200 hover:border-brand-sage/50 bg-neutral-50 hover:bg-brand-sand/20 rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center gap-2"
+                        >
+                          <Upload className="w-8 h-8 text-brand-sage animate-bounce" />
+                          <span className="font-bold text-neutral-800 text-xs">点击或拖拽您的菜品原图</span>
+                          <span className="text-[10px] text-neutral-400">支持常用图片格式，前端智能无损压缩</span>
+                        </div>
+                        
+                        {previewUrls[0] && (
+                          <div className="mt-3 relative w-32 aspect-square rounded-xl overflow-hidden border border-neutral-200 shadow-sm bg-brand-sand flex items-center justify-center">
+                            <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-cover" />
+                            <div className="absolute top-1 right-1">
+                              <button 
+                                onClick={() => removeImage(0)}
+                                className="p-1.5 bg-white/90 rounded-lg shadow text-neutral-400 hover:text-red-500"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {isAssistant && msg.type === 'config' && (
+                      <div className="mt-4 space-y-4 bg-neutral-50 p-4 rounded-xl border border-neutral-200/50">
+                        {/* Ratios selection */}
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">选择输出比例 (单选)</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {RATIOS.map(ratio => {
+                              const isActive = selectedRatios.includes(ratio.id);
+                              return (
+                                <button
+                                  key={ratio.id}
+                                  onClick={() => setSelectedRatios([ratio.id])}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                    isActive 
+                                      ? 'bg-brand-sage text-white border-brand-sage shadow-md' 
+                                      : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                  }`}
+                                >
+                                  {ratio.name} ({ratio.desc})
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Resolution selection */}
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">画质选择</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {RESOLUTIONS.map(res => {
+                              const isActive = selectedResolution === res.id;
+                              return (
+                                <button
+                                  key={res.id}
+                                  onClick={() => setSelectedResolution(res.id)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                    isActive 
+                                      ? 'bg-brand-sage text-white border-brand-sage shadow-md' 
+                                      : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                  }`}
+                                >
+                                  {res.id} ({res.desc})
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Generation trigger */}
+                        <button
+                          onClick={startAgentGeneration}
+                          disabled={isGenerating}
+                          className="w-full py-3 bg-brand-sage hover:bg-brand-sage-dark text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          {isGenerating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Layers className="w-4 h-4" />
+                          )}
+                          <span>🚀 开始生成爆炸图</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {isAssistant && msg.type === 'generating' && (
+                      <div className="mt-4 p-4 bg-brand-sand/20 rounded-xl border border-brand-sand/40 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="w-5 h-5 text-brand-sage animate-spin shrink-0" />
+                          <span className="text-xs font-bold text-brand-sage animate-pulse">{loadingMessages[loadingStep]}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="h-full bg-brand-sage"
+                            animate={{ width: ["0%", "95%"] }}
+                            transition={{ duration: 12, ease: "easeInOut" }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {isAssistant && msg.type === 'result' && (msg.payload?.images || (resultImages.length > 0 && resultImages[0])) && (
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 gap-4">
+                          {Object.entries(msg.payload?.images || resultImages[0]).map(([ratio, url]) => {
+                            if (!url) return null;
+                            const imageUrl = url as string;
+                            const layers = msg.payload?.layers?.[ratio] || layersData[`0-${ratio}`] || [];
+                            const dishName = msg.payload?.dishNames?.[ratio] || dishNamesData[`0-${ratio}`] || '';
+                            return (
+                              <div key={ratio} className="bg-neutral-50 p-3 rounded-2xl border border-neutral-100 flex flex-col gap-3">
+                                <div className="text-[9px] font-bold text-neutral-400 tracking-wider flex items-center justify-between">
+                                  <span>美食爆炸大片 ({ratio})</span>
+                                  <span className="text-brand-sage font-medium flex items-center gap-0.5">💡 点击图片预览放大</span>
+                                </div>
+                                <div 
+                                  className="relative aspect-square rounded-xl overflow-hidden border border-neutral-200/50 shadow bg-white flex items-center justify-center cursor-zoom-in group"
+                                  onClick={() => setZoomedImage(imageUrl)}
+                                >
+                                  <img src={imageUrl} alt="Exploded view" className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-102" />
+                                  {/* Zoom hover overlay */}
+                                  <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                    <div className="bg-white/90 p-2.5 rounded-full shadow-lg text-neutral-800 flex items-center gap-1 text-xs font-bold transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                                      <ImageIcon className="w-4 h-4" />
+                                      <span>点击放大预览</span>
+                                    </div>
+                                  </div>
+                                  <div className="absolute bottom-2 right-2 flex gap-1 z-10" onClick={(e) => e.stopPropagation()}>
+                                    <button 
+                                      onClick={() => downloadImageWithLabels(imageUrl, 0, ratio, layers, dishName)}
+                                      className="bg-white/95 text-brand-sage p-2 rounded-lg border border-neutral-200 hover:bg-brand-sand transition-all shadow"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Auto-detected layer list preview inside bubble */}
+                                <div className="bg-white p-3 rounded-xl border border-neutral-200/50 space-y-2">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-700">
+                                    <Tag className="w-3.5 h-3.5 text-brand-sage" />
+                                    <span>智能识别标签：{dishName || '招牌美食'}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {layers.map((l: any, i: number) => (
+                                      <span key={i} className="px-2 py-1 bg-brand-sand text-brand-sage text-[10px] font-semibold rounded-lg border border-brand-sage/15">
+                                        {l.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <p className="text-[10px] text-neutral-400 leading-normal">
+                                    💡 如果需要调整图层位置、微调标签文字，可以随时点击上方「专家模式」！
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            onClick={() => {
+                              const imgs = msg.payload?.images || resultImages[0];
+                              if (imgs) {
+                                Object.entries(imgs).forEach(([ratio, url]) => {
+                                  if (url) {
+                                    const layers = msg.payload?.layers?.[ratio] || layersData[`0-${ratio}`] || [];
+                                    const dishName = msg.payload?.dishNames?.[ratio] || dishNamesData[`0-${ratio}`] || '';
+                                    downloadImageWithLabels(url as string, 0, ratio, layers, dishName);
+                                  }
+                                });
+                              }
+                            }}
+                            className="flex-1 py-2.5 bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>打包保存到本地</span>
+                          </button>
+                          <button
+                            onClick={resetAgentFlow}
+                            className="flex-1 py-2.5 bg-brand-sand text-brand-sage hover:bg-brand-sand-dark rounded-xl text-xs font-bold transition-all border border-brand-sage/10 flex items-center justify-center gap-1.5"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            <span>继续制作新美食</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="text-[9px] text-neutral-400 px-1">
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Bottom Chat Bar */}
+        <div className="bg-white px-4 py-3.5 border-t border-neutral-200/60 flex items-center gap-2 shrink-0">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !isAiResponding && handleSendMessage()}
+            placeholder="您可以输入例如：“生成一张16:9的爆炸图，并设置标签为烤肉、生菜、洋葱。”"
+            className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-sm border-0 focus:ring-2 focus:ring-brand-sage/30 placeholder-neutral-400 focus:outline-none transition-all"
+            disabled={isAiResponding}
+          />
+          <button
+            onClick={() => !isAiResponding && handleSendMessage()}
+            disabled={isAiResponding || !chatInput.trim()}
+            className={`p-3 rounded-xl shadow-lg shadow-brand-sage/15 flex items-center justify-center transition-all active:scale-95 shrink-0 ${
+              chatInput.trim() && !isAiResponding
+                ? 'bg-brand-sage text-white hover:bg-brand-sage-dark'
+                : 'bg-neutral-100 text-neutral-400 shadow-none'
+            }`}
+          >
+            {isAiResponding ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+
+        {/* Zoomed Image modal */}
+        <AnimatePresence>
+          {zoomedImage && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setZoomedImage(null)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[99999] p-4 cursor-zoom-out"
+            >
+              <div className="relative max-w-5xl max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                <img src={zoomedImage} alt="Zoomed" className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl" />
+                <button 
+                  onClick={() => setZoomedImage(null)}
+                  className="absolute -top-12 right-0 text-white hover:text-neutral-300 flex items-center gap-1 text-xs font-semibold bg-white/10 px-3 py-1.5 rounded-xl border border-white/20 transition-all active:scale-95"
+                >
+                  <X className="w-4 h-4" />
+                  <span>关闭预览</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col bg-brand-paper text-neutral-900 font-sans selection:bg-brand-sage/20">
       {/* Hidden file input always in the DOM at the root level so that the ref current is never null */}
@@ -1089,7 +1484,7 @@ ABSOLUTE RULE - NO TEXT:
       </header>
 
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 min-h-0 flex flex-col">
-        {mode === 'agent' ? (
+        {(mode as string) === 'agent' ? (
           /* Agent Mode Conversational Layout */
           <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-140px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden self-center my-auto">
             {/* Chat Room Header */}
