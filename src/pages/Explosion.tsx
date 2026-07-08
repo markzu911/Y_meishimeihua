@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Image as ImageIcon, Loader2, Layers, Download, X, Plus, ArrowLeft, Tag } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Image as ImageIcon, Loader2, Layers, Download, X, Plus, ArrowLeft, Tag, Bot, Sliders, Send, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { saveImageStandard } from '../lib/saas';
 import { SaasData } from '../App';
@@ -19,7 +19,7 @@ const RESOLUTIONS = [
 ] as const;
 type Resolution = typeof RESOLUTIONS[number]['id'];
 
-export default function Explosion({ saasData }: { saasData: SaasData | null }) {
+export default function Explosion({ saasData, mode, setMode }: { saasData: SaasData | null; mode: 'agent' | 'expert'; setMode: (mode: 'agent' | 'expert') => void }) {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [selectedRatios, setSelectedRatios] = useState<AspectRatio[]>(['3:4']);
@@ -32,6 +32,7 @@ export default function Explosion({ saasData }: { saasData: SaasData | null }) {
   const [generatedRatios, setGeneratedRatios] = useState<AspectRatio[]>([]);
   const [generatedResolution, setGeneratedResolution] = useState<Resolution | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const errorRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,8 +51,390 @@ export default function Explosion({ saasData }: { saasData: SaasData | null }) {
   const [detectingLayers, setDetectingLayers] = useState<Record<string, boolean>>({});
   const [editingLabel, setEditingLabel] = useState<{ index: number, ratio: string, url: string, layers: Layer[], dishName: string, dishNameY: number, dishNameSize: number, layerNameSize: number } | null>(null);
 
+  // Agent Chat State and Interfaces
+  interface Message {
+    id: string;
+    sender: 'user' | 'assistant';
+    text: string;
+    timestamp: Date;
+    type?: 'upload' | 'config' | 'generating' | 'result' | 'error' | 'text';
+    payload?: any;
+  }
+
+  const [agentMessages, setAgentMessages] = useState<Message[]>([
+    {
+      id: 'welcome',
+      sender: 'assistant',
+      timestamp: new Date(),
+      type: 'upload',
+      text: '你好！我是您的**美食爆炸图 AI 助手**。我可以帮您把普通的菜品照片重构为悬浮、层级分明的**三维美食爆炸效果图**，并利用智能视觉网络自动识别食材添加图层标签。🍴\n\n请先点击下方上传您的菜品照片以开始制作：'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isAiResponding, setIsAiResponding] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [agentMessages]);
+
+  // Humorous progress text cycling for explosion diagrams
+  useEffect(() => {
+    if (isGenerating) {
+      const interval = setInterval(() => {
+        setLoadingStep(prev => (prev + 1) % 4);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [isGenerating]);
+
+  const loadingMessages = [
+    '正在分离并提取食物食材层级... 🥗',
+    '正在构建空间深度并排布爆炸轨迹... 🚀',
+    '正在生成高分辨率的三维悬浮爆炸效果... 🎨',
+    '正在调用智能视觉网络分析图层并准备成片... 🔍'
+  ];
+
+  // Watch isGenerating transitions to append Agent messages
+  const prevIsGenerating = useRef(isGenerating);
+  useEffect(() => {
+    if (prevIsGenerating.current && !isGenerating) {
+      if (error) {
+        setAgentMessages(prev => [
+          ...prev.filter(m => m.type !== 'generating'),
+          {
+            id: `error-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: new Date(),
+            type: 'text',
+            text: `❌ 生成失败: ${error}`
+          }
+        ]);
+      } else if (resultImages.length > 0 && resultImages[0] && Object.keys(resultImages[0]).length > 0) {
+        const savedImages = { ...resultImages[0] };
+        const savedLayers: Record<string, any> = {};
+        const savedDishNames: Record<string, string> = {};
+        Object.keys(savedImages).forEach(ratio => {
+          const key = `0-${ratio}`;
+          if (layersData[key]) {
+            savedLayers[ratio] = [...layersData[key]];
+          }
+          if (dishNamesData[key]) {
+            savedDishNames[ratio] = dishNamesData[key];
+          }
+        });
+
+        setAgentMessages(prev => [
+          ...prev.filter(m => m.type !== 'generating'),
+          {
+            id: `result-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: new Date(),
+            type: 'result',
+            payload: {
+              images: savedImages,
+              layers: savedLayers,
+              dishNames: savedDishNames,
+              ratios: [...selectedRatios],
+              resolution: selectedResolution
+            },
+            text: `✨ 美丽的爆炸大片已生成！我对菜品原图进行了完整的三维层级排布，并利用 AI 智能识别了食材图层：`
+          }
+        ]);
+      }
+    }
+    prevIsGenerating.current = isGenerating;
+  }, [isGenerating, error, resultImages, layersData, dishNamesData]);
+
+  const parseGeminiResponse = async (userText: string, currentRatio: string, currentRes: string) => {
+    try {
+      const prompt = `你是一个高度智能、有人情味且专业的“美食爆炸图视觉AI管家”。
+当前用户输入是: "${userText}"。
+
+系统当前状态:
+- 是否已上传菜品原图: ${selectedImages.length > 0 ? "是 (已上传)" : "否 (尚未上传)"}
+- 当前设定的输出比例: ${currentRatio}
+- 当前设定的生成画质: ${currentRes}
+
+可选输出比例: "1:1", "3:4", "9:16", "16:9" （用户可以说：方形、横版、竖版、长视频、抖音比例、长宽比等，请智能映射到最接近的比例）。
+可选画质: "1K", "2K", "4K"（用户可以说：标准、高清、超清、4k清晰度、最高画质、精细画质等）。
+
+请根据用户输入的指令和意图：
+1. 分析用户是否表达了以下任一明确指令：
+   - 【开始生成/制作】（如：“开始”、“开始制作”、“搞起”、“做一张”、“立即制作”、“生成”、“确定生成”、“走起”、“开始做”等）
+   - 【重置/重新开始】（如：“重置”、“重新开始”、“重新选择”、“重来”、“清空”等）
+   - 【修改尺寸/比例】（如：“换成16比9”、“改成方形”、“修改比例为3:4”等）
+   - 【修改清晰度/画质】（如：“用4K画质”、“提升清晰度为2K”等）
+
+2. 给出非常自然、拟人化的、口语化且有温度的回复（reply）。
+   - 不要像机器人一样机械重复，而是针对用户的改变直接予以确认和鼓励。
+   - 如果用户要求生成（或准备好生成），在回复中兴奋地告诉他们：“好的，收到您的指令，马上为您分层级构建爆炸效果！请看下方👇...” 或类似话语。
+   - 如果用户尚未上传照片，友好地引导他们上传，如：“比例已选好！快把您的美食照片上传到这里，我这就开始为您重构层级~”
+   - 如果用户已经上传了照片，可以顺应他们的要求，修改比例后，友好地提示：“已为您切换，随时可以点击下方的‘开始 AI 制作’，或者直接对我说‘开始生成’！”
+
+3. 务必返回以下 JSON 格式（绝对不要带有任何 markdown 格式标记如 \`\`\`json 或是 \`\`\`，必须是纯 JSON 字符串）：
+{
+  "reply": "非常自然拟人化的回复，总结当前的改动并引导下一步（如果有）",
+  "detectedRatio": "匹配到的比例如 1:1，如果没有提到，返回 null",
+  "detectedResolution": "匹配到的清晰度如 2K，如果没有提到，返回 null",
+  "shouldStartGenerate": true/false (当用户表达了“开始制作/开始生成/一键生成”的意思时为 true，否则为 false),
+  "shouldReset": true/false (当用户表达了“重新开始/重置”的意思时为 true，否则为 false)
+}`;
+
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gemini-3.5-flash",
+          payload: {
+            contents: { parts: [{ text: prompt }] },
+            config: { responseMimeType: "application/json" }
+          }
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Gemini parse failed:", err);
+    }
+    return null;
+  };
+
+  const handleSendMessage = async (customText?: string) => {
+    const textToSend = customText !== undefined ? customText : chatInput;
+    if (!textToSend.trim()) return;
+
+    if (customText === undefined) {
+      setChatInput('');
+    }
+
+    setAgentMessages(prev => [
+      ...prev,
+      {
+        id: `user-${Date.now()}`,
+        sender: 'user',
+        text: textToSend,
+        timestamp: new Date(),
+        type: 'text'
+      }
+    ]);
+
+    setIsAiResponding(true);
+
+    try {
+      const thinkingId = `thinking-${Date.now()}`;
+      setAgentMessages(prev => [
+        ...prev,
+        {
+          id: thinkingId,
+          sender: 'assistant',
+          text: 'AI 正在分析并理解您的意思...',
+          timestamp: new Date(),
+          type: 'text'
+        }
+      ]);
+
+      const result = await parseGeminiResponse(textToSend, selectedRatios[0] || '3:4', selectedResolution);
+
+      setAgentMessages(prev => prev.filter(m => m.id !== thinkingId));
+
+      if (result) {
+        if (result.shouldReset) {
+          resetAgentFlow();
+          return;
+        }
+
+        if (result.detectedRatio) {
+          const matchedRatio = RATIOS.find(r => r.id === result.detectedRatio);
+          if (matchedRatio) {
+            setSelectedRatios([matchedRatio.id]);
+          }
+        }
+        if (result.detectedResolution) {
+          const matchedRes = RESOLUTIONS.find(r => r.id === result.detectedResolution);
+          if (matchedRes) {
+            setSelectedResolution(matchedRes.id);
+          }
+        }
+
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            sender: 'assistant',
+            text: result.reply || '已为您调整爆炸图的输出比例或参数。',
+            timestamp: new Date(),
+            type: selectedImages.length === 0 ? 'upload' : 'config'
+          }
+        ]);
+
+        if (result.shouldStartGenerate) {
+          setTimeout(() => {
+            startAgentGeneration();
+          }, 150);
+        }
+      } else {
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            sender: 'assistant',
+            text: '抱歉，我不太理解您的这个要求。请上传菜品照片，或直接配置下方的比例开始生成爆炸图吧！',
+            timestamp: new Date(),
+            type: selectedImages.length === 0 ? 'upload' : 'config'
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error(err);
+      setAgentMessages(prev => [
+        ...prev,
+        {
+          id: `assistant-err-${Date.now()}`,
+          sender: 'assistant',
+          text: '网络有一些开小差，请直接点击按钮配置生成。',
+          timestamp: new Date(),
+          type: selectedImages.length === 0 ? 'upload' : 'config'
+        }
+      ]);
+    } finally {
+      setIsAiResponding(false);
+    }
+  };
+
+  const startAgentGeneration = async () => {
+    if (selectedImages.length === 0) {
+      setAgentMessages(prev => [
+        ...prev,
+        {
+          id: `err-no-img-${Date.now()}`,
+          sender: 'assistant',
+          timestamp: new Date(),
+          type: 'text',
+          text: '⚠️ 请先上传您的菜品照片才能制作爆炸图。'
+        }
+      ]);
+      return;
+    }
+
+    if (saasData) {
+      try {
+        const verifyRes = await fetch('/api/tool/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
+        });
+        const verifyResult = await verifyRes.json();
+        
+        const verifyPts = verifyResult?.currentIntegral ?? verifyResult?.points ?? verifyResult?.balance ?? verifyResult?.remain ?? verifyResult?.data?.balance ?? verifyResult?.data?.points ?? verifyResult?.data?.currentIntegral;
+        if (verifyPts !== undefined && verifyPts !== null) {
+          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: verifyPts } }));
+        }
+
+        if (!verifyResult.success && !verifyResult.valid) {
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              id: `quota-err-${Date.now()}`,
+              sender: 'assistant',
+              timestamp: new Date(),
+              type: 'error',
+              text: `❌ 积分不足，无法执行该操作`
+            }
+          ]);
+          return;
+        }
+      } catch (e: any) {
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `quota-err-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: new Date(),
+            type: 'error',
+            text: `❌ 积分校验失败: ${e.message || '网络连接错误'}`
+          }
+        ]);
+        return;
+      }
+    }
+
+    setAgentMessages(prev => [
+      ...prev,
+      {
+        id: `generating-${Date.now()}`,
+        sender: 'assistant',
+        timestamp: new Date(),
+        type: 'generating',
+        text: '正在为您重构分离三维美食爆炸层级，这可能需要 5-15 秒，请稍候... ⏳'
+      }
+    ]);
+
+    generateImages();
+  };
+
+  const resetAgentFlow = () => {
+    setSelectedImages([]);
+    setPreviewUrls([]);
+    setResultImages([]);
+    setAgentMessages([
+      {
+        id: 'welcome',
+        sender: 'assistant',
+        timestamp: new Date(),
+        type: 'upload',
+        text: '你好！我是您的**美食爆炸图 AI 助手**。我可以帮您把普通的菜品照片重构为悬浮、层级分明的**三维美食爆炸效果图**，并利用智能视觉网络自动识别食材添加图层标签。🍴\n\n请先点击下方上传您的菜品照片以开始制作：'
+      }
+    ]);
+  };
+
+  const resizeBase64Image = (base64Url: string, maxSide: number = 1024): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = base64Url;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxSide || height > maxSide) {
+          if (width > height) {
+            height = (height / width) * maxSide;
+            width = maxSide;
+          } else {
+            width = (width / height) * maxSide;
+            height = maxSide;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Could not get canvas context'));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = (err) => reject(err);
+    });
+  };
+
   const detectLayers = async (base64Url: string) => {
-    const base64Data = base64Url.split(',')[1];
+    let base64Data = '';
+    try {
+      // 2K/4K base64 payloads are too large for Gemini API requests, so we compress them to a standard 1024px side first
+      const resizedBase64 = await resizeBase64Image(base64Url, 1024);
+      base64Data = resizedBase64.split(',')[1];
+    } catch (e) {
+      console.error("Failed to resize image for layer detection, falling back to original", e);
+      base64Data = base64Url.split(',')[1];
+    }
+
     const prompt = `You are an AI that analyzes food explosion diagrams. Look at the provided image and identify the dish name and the distinct vertical layers of food components floating in the air.
 Return a JSON object with two properties:
 1. 'dishName': A catchy, elegant Chinese name for this dish (e.g., '金汤肥牛', '招牌海鲜面').
@@ -135,9 +518,40 @@ Output ONLY valid JSON without markdown formatting, like: {"dishName": "招牌�
         setPreviewUrls([compressedBase64]);
         setResultImages([{}]);
         setError(null);
+
+        // Advance chat in Agent Mode
+        if (mode === 'agent') {
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              id: `user-upload-${Date.now()}`,
+              sender: 'user',
+              text: `已上传菜品照片：「${file.name}」`,
+              timestamp: new Date()
+            },
+            {
+              id: `assistant-config-${Date.now()}`,
+              sender: 'assistant',
+              text: `菜品照片已确认！💡 接下来，请确认您期望的生成比例，然后点击下方的「🚀 开始生成爆炸图」：`,
+              timestamp: new Date(),
+              type: 'config'
+            }
+          ]);
+        }
       } catch (err) {
         console.error("Compression error:", err);
         setError("图片处理失败，请稍后重试");
+        if (mode === 'agent') {
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              id: `assistant-err-${Date.now()}`,
+              sender: 'assistant',
+              text: `❌ 图片处理失败，请重新上传。`,
+              timestamp: new Date()
+            }
+          ]);
+        }
       } finally {
         setIsCompressing(false);
       }
@@ -408,6 +822,13 @@ ABSOLUTE RULE - NO TEXT:
               setDefaultLayersData(prev => ({ ...prev, [`${i}-${ratio}`]: detected.layers }));
               setDefaultDishNamesData(prev => ({ ...prev, [`${i}-${ratio}`]: detected.dishName || '招牌美食' }));
               setDefaultDishNameYData(prev => ({ ...prev, [`${i}-${ratio}`]: 5 }));
+
+              // 自动填写：使检测到的图层与菜品名在页面上自动呈现并处于可编辑状态
+              setLayersData(prev => ({ ...prev, [`${i}-${ratio}`]: detected.layers }));
+              setDishNamesData(prev => ({ ...prev, [`${i}-${ratio}`]: detected.dishName || '招牌美食' }));
+              setDishNameYData(prev => ({ ...prev, [`${i}-${ratio}`]: 5 }));
+              setDishNameSizeData(prev => ({ ...prev, [`${i}-${ratio}`]: 100 }));
+              setLayerNameSizeData(prev => ({ ...prev, [`${i}-${ratio}`]: 100 }));
             }
           } catch (e) {
             console.error("Failed to detect layers", e);
@@ -435,9 +856,9 @@ ABSOLUTE RULE - NO TEXT:
     }
   };
 
-  const downloadImageWithLabels = async (url: string, index: number, ratio: string) => {
-    const layers = layersData[`${index}-${ratio}`];
-    const dishName = dishNamesData[`${index}-${ratio}`] || '';
+  const downloadImageWithLabels = async (url: string, index: number, ratio: string, customLayers?: Layer[], customDishName?: string) => {
+    const layers = customLayers !== undefined ? customLayers : layersData[`${index}-${ratio}`];
+    const dishName = customDishName !== undefined ? customDishName : (dishNamesData[`${index}-${ratio}`] || '');
     const dishNameY = dishNameYData[`${index}-${ratio}`] ?? defaultDishNameYData[`${index}-${ratio}`] ?? 5;
     const dishNameSize = dishNameSizeData[`${index}-${ratio}`] ?? 100;
     const layerNameSize = layerNameSizeData[`${index}-${ratio}`] ?? 100;
@@ -602,11 +1023,335 @@ ABSOLUTE RULE - NO TEXT:
               <h1 className="text-xl font-bold tracking-tight font-display">美食爆炸图</h1>
             </div>
           </div>
+
+          {/* Desktop Mode Toggle Selector */}
+          <div className="flex bg-white/95 p-0.5 rounded-xl border border-neutral-200/60 shadow-sm">
+            <button
+              onClick={() => setMode('agent')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                mode === 'agent'
+                  ? 'bg-brand-sage text-white shadow-md font-bold'
+                  : 'text-neutral-500 hover:text-neutral-900'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              <span>智能体模式 (默认)</span>
+            </button>
+            <button
+              onClick={() => setMode('expert')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                mode === 'expert'
+                  ? 'bg-brand-sage text-white shadow-md font-bold'
+                  : 'text-neutral-500 hover:text-neutral-900'
+              }`}
+            >
+              <Sliders className="w-4 h-4" />
+              <span>专家模式</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 min-h-0">
-        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 min-h-0 flex flex-col">
+        {mode === 'agent' ? (
+          /* Agent Mode Conversational Layout */
+          <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-180px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden">
+            {/* Chat Room Header */}
+            <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-10 h-10 bg-brand-sage text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-sage/10 font-bold">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-ping"></span>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-800">AI 爆炸图视觉大师</h3>
+                  <p className="text-[10px] text-neutral-400">为您构建三维层级与图层标签</p>
+                </div>
+              </div>
+              <button 
+                onClick={resetAgentFlow} 
+                className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+                title="重置对话"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>全新制作</span>
+              </button>
+            </div>
+
+            {/* Chat Flow Scroll Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-neutral-50/50">
+              {agentMessages.map((msg, index) => {
+                const isAssistant = msg.sender === 'assistant';
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
+                  >
+                    {/* Avatar */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm text-xs font-bold ${
+                      isAssistant ? 'bg-brand-sage text-white' : 'bg-brand-amber/10 text-brand-amber'
+                    }`}>
+                      {isAssistant ? <Bot className="w-4 h-4" /> : 'ME'}
+                    </div>
+
+                    {/* Chat Bubble */}
+                    <div className="flex flex-col max-w-[85%] space-y-2">
+                      <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                        isAssistant 
+                          ? msg.type === 'error'
+                            ? 'bg-red-50 text-red-800 border border-red-100'
+                            : 'bg-white text-neutral-800 border border-neutral-200/60' 
+                          : 'bg-brand-sage text-white'
+                      }`}>
+                        {/* Render text */}
+                        <div className="whitespace-pre-wrap">
+                          {msg.text}
+                        </div>
+
+                        {/* Interactive Elements */}
+                        {isAssistant && msg.type === 'upload' && (
+                          <div className="mt-4">
+                            <div 
+                              onClick={() => !isGenerating && fileInputRef.current?.click()}
+                              className="border-2 border-dashed border-neutral-200 hover:border-brand-sage/50 bg-neutral-50 hover:bg-brand-sand/20 rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center gap-2"
+                            >
+                              <Upload className="w-8 h-8 text-brand-sage animate-bounce" />
+                              <span className="font-bold text-neutral-800 text-xs">点击或拖拽您的菜品原图</span>
+                              <span className="text-[10px] text-neutral-400">支持常用图片格式，前端智能无损压缩</span>
+                            </div>
+                            
+                            {previewUrls[0] && (
+                              <div className="mt-3 relative w-32 aspect-square rounded-xl overflow-hidden border border-neutral-200 shadow-sm bg-brand-sand flex items-center justify-center">
+                                <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-cover" />
+                                <div className="absolute top-1 right-1">
+                                  <button 
+                                    onClick={() => removeImage(0)}
+                                    className="p-1.5 bg-white/90 rounded-lg shadow text-neutral-400 hover:text-red-500"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'config' && (
+                          <div className="mt-4 space-y-4 bg-neutral-50 p-4 rounded-xl border border-neutral-200/50">
+                            {/* Ratios selection */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">选择输出比例 (单选)</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {RATIOS.map(ratio => {
+                                  const isActive = selectedRatios.includes(ratio.id);
+                                  return (
+                                    <button
+                                      key={ratio.id}
+                                      onClick={() => setSelectedRatios([ratio.id])}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                        isActive 
+                                          ? 'bg-brand-sage text-white border-brand-sage shadow-md' 
+                                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                      }`}
+                                    >
+                                      {ratio.name} ({ratio.desc})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Resolution selection */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">画质选择</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {RESOLUTIONS.map(res => {
+                                  const isActive = selectedResolution === res.id;
+                                  return (
+                                    <button
+                                      key={res.id}
+                                      onClick={() => setSelectedResolution(res.id)}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                        isActive 
+                                          ? 'bg-brand-sage text-white border-brand-sage shadow-md' 
+                                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                      }`}
+                                    >
+                                      {res.id} ({res.desc})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Generation trigger */}
+                            <button
+                              onClick={startAgentGeneration}
+                              disabled={isGenerating}
+                              className="w-full py-3 bg-brand-sage hover:bg-brand-sage-dark text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                              {isGenerating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Layers className="w-4 h-4" />
+                              )}
+                              <span>🚀 开始生成爆炸图</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'generating' && (
+                          <div className="mt-4 p-4 bg-brand-sand/20 rounded-xl border border-brand-sand/40 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <Loader2 className="w-5 h-5 text-brand-sage animate-spin shrink-0" />
+                              <span className="text-xs font-bold text-brand-sage animate-pulse">{loadingMessages[loadingStep]}</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
+                              <motion.div 
+                                className="h-full bg-brand-sage"
+                                animate={{ width: ["0%", "95%"] }}
+                                transition={{ duration: 12, ease: "easeInOut" }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'result' && (msg.payload?.images || (resultImages.length > 0 && resultImages[0])) && (
+                          <div className="mt-4 space-y-4">
+                            <div className="grid grid-cols-1 gap-4">
+                              {Object.entries(msg.payload?.images || resultImages[0]).map(([ratio, url]) => {
+                                if (!url) return null;
+                                const imageUrl = url as string;
+                                const layers = msg.payload?.layers?.[ratio] || layersData[`0-${ratio}`] || [];
+                                const dishName = msg.payload?.dishNames?.[ratio] || dishNamesData[`0-${ratio}`] || '';
+                                return (
+                                  <div key={ratio} className="bg-neutral-50 p-3 rounded-2xl border border-neutral-100 flex flex-col gap-3">
+                                    <div className="text-[9px] font-bold text-neutral-400 tracking-wider flex items-center justify-between">
+                                      <span>美食爆炸大片 ({ratio})</span>
+                                      <span className="text-brand-sage font-medium flex items-center gap-0.5">💡 点击图片预览放大</span>
+                                    </div>
+                                    <div 
+                                      className="relative aspect-square rounded-xl overflow-hidden border border-neutral-200/50 shadow bg-white flex items-center justify-center cursor-zoom-in group"
+                                      onClick={() => setZoomedImage(imageUrl)}
+                                    >
+                                      <img src={imageUrl} alt="Exploded view" className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-102" />
+                                      {/* Zoom hover overlay */}
+                                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <div className="bg-white/90 p-2.5 rounded-full shadow-lg text-neutral-800 flex items-center gap-1 text-xs font-bold transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                                          <ImageIcon className="w-4 h-4" />
+                                          <span>点击放大预览</span>
+                                        </div>
+                                      </div>
+                                      <div className="absolute bottom-2 right-2 flex gap-1 z-10" onClick={(e) => e.stopPropagation()}>
+                                        <button 
+                                          onClick={() => downloadImageWithLabels(imageUrl, 0, ratio, layers, dishName)}
+                                          className="bg-white/95 text-brand-sage p-2 rounded-lg border border-neutral-200 hover:bg-brand-sand transition-all shadow"
+                                        >
+                                          <Download className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Auto-detected layer list preview inside bubble */}
+                                    <div className="bg-white p-3 rounded-xl border border-neutral-200/50 space-y-2">
+                                      <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-700">
+                                        <Tag className="w-3.5 h-3.5 text-brand-sage" />
+                                        <span>智能识别标签：{dishName || '招牌美食'}</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {layers.map((l: any, i: number) => (
+                                          <span key={i} className="px-2 py-1 bg-brand-sand text-brand-sage text-[10px] font-semibold rounded-lg border border-brand-sage/15">
+                                            {l.name}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <p className="text-[10px] text-neutral-400 leading-normal">
+                                        💡 如果需要调整图层位置、微调标签文字，可以随时点击上方「专家模式」！
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <button
+                                onClick={() => {
+                                  const imgs = msg.payload?.images || resultImages[0];
+                                  if (imgs) {
+                                    Object.entries(imgs).forEach(([ratio, url]) => {
+                                      if (url) {
+                                        const layers = msg.payload?.layers?.[ratio] || layersData[`0-${ratio}`] || [];
+                                        const dishName = msg.payload?.dishNames?.[ratio] || dishNamesData[`0-${ratio}`] || '';
+                                        downloadImageWithLabels(url as string, 0, ratio, layers, dishName);
+                                      }
+                                    });
+                                  }
+                                }}
+                                className="flex-1 py-2.5 bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                              >
+                                <Download className="w-4 h-4" />
+                                <span>打包保存到本地</span>
+                              </button>
+                              <button
+                                onClick={resetAgentFlow}
+                                className="flex-1 py-2.5 bg-brand-sand text-brand-sage hover:bg-brand-sand-dark rounded-xl text-xs font-bold transition-all border border-brand-sage/10 flex items-center justify-center gap-1.5"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                <span>重新开始制作</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="text-[9px] text-neutral-400 px-1">
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Bottom Chat Bar */}
+            <div className="bg-white px-4 py-3.5 border-t border-neutral-200/60 flex items-center gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isAiResponding && handleSendMessage()}
+                placeholder="您可以输入例如：“帮我制作1:1的方形爆炸图。”"
+                className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-sm border-0 focus:ring-2 focus:ring-brand-sage/30 placeholder-neutral-400 focus:outline-none transition-all"
+                disabled={isAiResponding}
+              />
+              <button
+                onClick={() => !isAiResponding && handleSendMessage()}
+                disabled={isAiResponding || !chatInput.trim()}
+                className={`p-3 rounded-xl shadow-lg shadow-brand-sage/15 flex items-center justify-center transition-all active:scale-95 ${
+                  chatInput.trim() && !isAiResponding
+                    ? 'bg-brand-sage text-white hover:bg-brand-sage-dark'
+                    : 'bg-neutral-100 text-neutral-400 shadow-none'
+                }`}
+              >
+                {isAiResponding ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Expert Mode (The original columns grid layout) */
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
           
           {/* Left Column: Controls */}
           <div className="space-y-6 lg:col-span-4 xl:col-span-3 lg:overflow-y-auto lg:pr-2 lg:pb-4 shrink-0">
@@ -936,8 +1681,8 @@ ABSOLUTE RULE - NO TEXT:
               )}
             </div>
           </div>
-
         </div>
+        )}
       </main>
 
       <AnimatePresence>

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Image as ImageIcon, Loader2, Wand2, Download, X, Plus, ArrowLeft } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, Image as ImageIcon, Loader2, Wand2, Download, X, Plus, ArrowLeft, Bot, Sliders, Send, MessageSquare, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { saveImageStandard } from '../lib/saas';
 import { SaasData } from '../App';
@@ -58,7 +58,7 @@ const RESOLUTIONS = [
 ] as const;
 type Resolution = typeof RESOLUTIONS[number]['id'];
 
-export default function Beautify({ saasData }: { saasData: SaasData | null }) {
+export default function Beautify({ saasData, mode, setMode }: { saasData: SaasData | null; mode: 'agent' | 'expert'; setMode: (mode: 'agent' | 'expert') => void }) {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0].id);
@@ -75,6 +75,385 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Agent Chat State and Interfaces
+  interface Message {
+    id: string;
+    sender: 'user' | 'assistant';
+    text: string;
+    timestamp: Date;
+    type?: 'style-select' | 'upload' | 'config' | 'generating' | 'result' | 'error' | 'text';
+    payload?: any;
+  }
+
+  const [agentMessages, setAgentMessages] = useState<Message[]>([
+    {
+      id: 'welcome',
+      sender: 'assistant',
+      timestamp: new Date(),
+      type: 'style-select',
+      text: '你好！我是您的**美食美化 AI 助手**。我可以帮您为菜品照片替换精美的背景、进行光影重构，并提升食物质感。✨\n\n请先选择您期望的美化风格：'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isAiResponding, setIsAiResponding] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [agentMessages]);
+
+  // Humorous progress text cycling
+  useEffect(() => {
+    if (isGenerating) {
+      const interval = setInterval(() => {
+        setLoadingStep(prev => (prev + 1) % 4);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [isGenerating]);
+
+  const loadingMessages = [
+    '正在对菜品进行精准扣图与边缘重构... 🎯',
+    '正在设计融入全新氛围感的高清背景... 🎨',
+    '正在为菜品渲染完美的漫反射摄影光影... 💡',
+    '正在打包并准备精美的美化成品照片... 📦'
+  ];
+
+  // Watch isGenerating transitions to append Agent messages
+  const prevIsGenerating = useRef(isGenerating);
+  useEffect(() => {
+    if (prevIsGenerating.current && !isGenerating) {
+      if (error) {
+        setAgentMessages(prev => [
+          ...prev.filter(m => m.type !== 'generating'),
+          {
+            id: `error-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: new Date(),
+            type: 'text',
+            text: `❌ 生成失败: ${error}`
+          }
+        ]);
+      } else if (resultImages.length > 0 && resultImages[0] && Object.keys(resultImages[0]).length > 0) {
+        const savedImages = { ...resultImages[0] };
+        setAgentMessages(prev => [
+          ...prev.filter(m => m.type !== 'generating'),
+          {
+            id: `result-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: new Date(),
+            type: 'result',
+            payload: {
+              images: savedImages,
+              styleId: selectedStyle,
+              ratios: [...selectedRatios],
+              resolution: selectedResolution
+            },
+            text: `✨ 美化生成完成！我已经为您的菜品照片重构了全新的背景和极佳的光影：`
+          }
+        ]);
+      }
+    }
+    prevIsGenerating.current = isGenerating;
+  }, [isGenerating, error, resultImages]);
+
+  const parseGeminiResponse = async (userText: string, currentStyle: string, currentRatio: string, currentRes: string) => {
+    try {
+      const prompt = `你是一个高度智能、有人情味且专业的“美食美化视觉AI管家”。
+当前用户输入是: "${userText}"。
+
+系统当前状态:
+- 是否已上传菜品原图: ${selectedImages.length > 0 ? "是 (已上传)" : "否 (尚未上传)"}
+- 当前选择的风格: ${currentStyle}
+- 当前设定的输出比例: ${currentRatio}
+- 当前设定的生成画质: ${currentRes}
+
+可选美化风格和对应ID:
+1. 现代极简 (modern-minimalist) - 米白色背景，干净，柔和明亮
+2. 暗调情绪 (dark-moody) - 黑色岩板桌面，纯黑背景，聚光灯打光，高级高冷
+3. 乡村木质 (rustic) - 做旧老木板桌面，带有粗麻布，香料
+4. 高级餐厅 (fine-dining) - 深紫色丝绸桌布，红酒杯，奢华米其林
+5. 明亮清新 (bright-airy) - 白色大理石桌面，自然窗光，清新干净现代
+6. 自然绿植 (natural-forest) - 苔藓与原木桌面，森林绿植，干冰烟雾缭绕
+
+可选输出比例: "1:1", "3:4", "9:16", "16:9" （用户可以说：方形、横版、竖版、长视频、小红书比例、抖音比例等，请智能映射到最接近的比例）。
+可选画质: "1K", "2K", "4K"（用户可以说：标准、高清、超清、高清画质、最高品质等）。
+
+请根据用户输入的指令和意图：
+1. 分析用户是否表达了以下任一明确指令：
+   - 【开始生成/美化】（如：“开始”、“开始生成”、“一键生成”、“搞起”、“做一张”、“立即美化”、“生成”、“确定生成”、“走起”、“开始做”等）
+   - 【重置/重新开始】（如：“重置”、“重新开始”、“重新选择”、“重来”、“清空”等）
+   - 【修改尺寸/比例】（如：“换成16比9”、“改成方形”、“修改比例为3:4”等）
+   - 【更换背景/风格】（如：“我想换成森林绿植的背景”、“用高级餐厅风格”、“改成大理石”、“帮我换成米白色”等）
+   - 【修改清晰度/画质】（如：“用4K画质”、“提升清晰度为2K”等）
+
+2. 给出非常自然、拟人化的、口语化且有温度的回复（reply）。
+   - 不要像机器人一样机械重复，而是针对用户的改变直接予以确认和鼓励。
+   - 如果用户要求生成（或准备好生成），在回复中兴奋地告诉他们：“好的，收到您的指令，马上为您一键重构！请看下方👇...” 或类似话语。
+   - 如果用户尚未上传照片，友好地引导他们上传，如：“风格已选好！快把您的美食照片上传到这里，我这就给它化个妆~”
+   - 如果用户已经上传了照片，可以顺应他们的要求，修改比例或背景后，友好地提示：“已为您切换，随时可以点击下方的‘开始 AI 美化’，或者直接对我说‘开始生成’！”
+
+3. 务必返回以下 JSON 格式（绝对不要带有任何 markdown 格式标记如 \`\`\`json 或是 \`\`\`，必须是纯 JSON 字符串）：
+{
+  "reply": "非常自然拟人化的回复，总结当前的改动并引导下一步（如果有）",
+  "detectedStyleId": "匹配到的风格ID，如 modern-minimalist，如果没有提到，返回 null",
+  "detectedRatio": "匹配到的比例如 1:1，如果没有提到，返回 null",
+  "detectedResolution": "匹配到的清晰度如 2K，如果没有提到，返回 null",
+  "shouldStartGenerate": true/false (当用户表达了“开始生成/开始美化/一键美化”的意思时为 true，否则为 false),
+  "shouldReset": true/false (当用户表达了“重新开始/重置”的意思时为 true，否则为 false)
+}`;
+
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gemini-3.5-flash",
+          payload: {
+            contents: { parts: [{ text: prompt }] },
+            config: { responseMimeType: "application/json" }
+          }
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Gemini parse failed:", err);
+    }
+    return null;
+  };
+
+  const handleSendMessage = async (customText?: string) => {
+    const textToSend = customText !== undefined ? customText : chatInput;
+    if (!textToSend.trim()) return;
+
+    if (customText === undefined) {
+      setChatInput('');
+    }
+
+    // Append user message
+    setAgentMessages(prev => [
+      ...prev,
+      {
+        id: `user-${Date.now()}`,
+        sender: 'user',
+        text: textToSend,
+        timestamp: new Date(),
+        type: 'text'
+      }
+    ]);
+
+    setIsAiResponding(true);
+
+    try {
+      const thinkingId = `thinking-${Date.now()}`;
+      setAgentMessages(prev => [
+        ...prev,
+        {
+          id: thinkingId,
+          sender: 'assistant',
+          text: 'AI 正在分析并理解您的意思...',
+          timestamp: new Date(),
+          type: 'text'
+        }
+      ]);
+
+      const result = await parseGeminiResponse(textToSend, selectedStyle, selectedRatios[0] || '3:4', selectedResolution);
+
+      setAgentMessages(prev => prev.filter(m => m.id !== thinkingId));
+
+      if (result) {
+        if (result.shouldReset) {
+          resetAgentFlow();
+          return;
+        }
+
+        if (result.detectedStyleId && STYLES.some(s => s.id === result.detectedStyleId)) {
+          setSelectedStyle(result.detectedStyleId);
+        }
+        if (result.detectedRatio) {
+          const matchedRatio = RATIOS.find(r => r.id === result.detectedRatio);
+          if (matchedRatio) {
+            setSelectedRatios([matchedRatio.id]);
+          }
+        }
+        if (result.detectedResolution) {
+          const matchedRes = RESOLUTIONS.find(r => r.id === result.detectedResolution);
+          if (matchedRes) {
+            setSelectedResolution(matchedRes.id);
+          }
+        }
+
+        // Determine next state
+        let nextType: 'style-select' | 'upload' | 'config' | 'text' = 'text';
+        if (selectedImages.length === 0) {
+          nextType = 'upload';
+        } else {
+          nextType = 'config';
+        }
+
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            sender: 'assistant',
+            text: result.reply || '已为您调整对应的参数。',
+            timestamp: new Date(),
+            type: nextType
+          }
+        ]);
+
+        if (result.shouldStartGenerate) {
+          setTimeout(() => {
+            startAgentGeneration();
+          }, 150);
+        }
+      } else {
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            sender: 'assistant',
+            text: '抱歉，我目前对复杂的指令有些迷茫。您可以选择下方风格或者上传照片开始美化！',
+            timestamp: new Date(),
+            type: selectedImages.length === 0 ? 'style-select' : 'config'
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error(err);
+      setAgentMessages(prev => [
+        ...prev,
+        {
+          id: `assistant-err-${Date.now()}`,
+          sender: 'assistant',
+          text: '网络有一些开小差，请稍后再试或点击按钮进行操作。',
+          timestamp: new Date(),
+          type: selectedImages.length === 0 ? 'style-select' : 'config'
+        }
+      ]);
+    } finally {
+      setIsAiResponding(false);
+    }
+  };
+
+  const handleSelectStyleInChat = (styleId: string) => {
+    const style = STYLES.find(s => s.id === styleId);
+    if (!style) return;
+
+    setSelectedStyle(styleId);
+
+    setAgentMessages(prev => [
+      ...prev,
+      {
+        id: `user-style-${Date.now()}`,
+        sender: 'user',
+        text: `我选择「${style.name}」风格`,
+        timestamp: new Date()
+      },
+      {
+        id: `assistant-upload-${Date.now()}`,
+        sender: 'assistant',
+        text: `已为您选择 **${style.name}** 风格。✨ ${style.description}。\n\n接下来，请上传需要美化的菜品照片：`,
+        timestamp: new Date(),
+        type: 'upload'
+      }
+    ]);
+  };
+
+  const startAgentGeneration = async () => {
+    if (selectedImages.length === 0) {
+      setAgentMessages(prev => [
+        ...prev,
+        {
+          id: `err-no-img-${Date.now()}`,
+          sender: 'assistant',
+          timestamp: new Date(),
+          type: 'text',
+          text: '⚠️ 请先上传您的菜品照片才能开始美化。'
+        }
+      ]);
+      return;
+    }
+
+    if (saasData) {
+      try {
+        const verifyRes = await fetch('/api/tool/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: saasData.userId, toolId: saasData.toolId })
+        });
+        const verifyResult = await verifyRes.json();
+        
+        const verifyPts = verifyResult?.currentIntegral ?? verifyResult?.points ?? verifyResult?.balance ?? verifyResult?.remain ?? verifyResult?.data?.balance ?? verifyResult?.data?.points ?? verifyResult?.data?.currentIntegral;
+        if (verifyPts !== undefined && verifyPts !== null) {
+          window.dispatchEvent(new CustomEvent('update_points', { detail: { points: verifyPts } }));
+        }
+
+        if (!verifyResult.success && !verifyResult.valid) {
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              id: `quota-err-${Date.now()}`,
+              sender: 'assistant',
+              timestamp: new Date(),
+              type: 'error',
+              text: `❌ 积分不足，无法执行该操作`
+            }
+          ]);
+          return;
+        }
+      } catch (e: any) {
+        setAgentMessages(prev => [
+          ...prev,
+          {
+            id: `quota-err-${Date.now()}`,
+            sender: 'assistant',
+            timestamp: new Date(),
+            type: 'error',
+            text: `❌ 积分校验失败: ${e.message || '网络连接错误'}`
+          }
+        ]);
+        return;
+      }
+    }
+
+    setAgentMessages(prev => [
+      ...prev,
+      {
+        id: `generating-${Date.now()}`,
+        sender: 'assistant',
+        timestamp: new Date(),
+        type: 'generating',
+        text: '正在为您精心重构光影并美化菜品，这可能需要 5-15 秒，请稍候... ⏳'
+      }
+    ]);
+
+    generateImages();
+  };
+
+  const resetAgentFlow = () => {
+    setSelectedImages([]);
+    setPreviewUrls([]);
+    setResultImages([]);
+    setAgentMessages([
+      {
+        id: 'welcome',
+        sender: 'assistant',
+        timestamp: new Date(),
+        type: 'style-select',
+        text: '你好！我是您的**美食美化 AI 助手**。我可以帮您为菜品照片替换精美的背景、进行光影重构，并提升食物质感。✨\n\n请先选择您期望的美化风格：'
+      }
+    ]);
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from<File>(e.target.files || []);
@@ -102,9 +481,40 @@ export default function Beautify({ saasData }: { saasData: SaasData | null }) {
         setPreviewUrls([compressedBase64]);
         setResultImages([{}]);
         setError(null);
+
+        // If in Agent Mode, advance chat
+        if (mode === 'agent') {
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              id: `user-upload-${Date.now()}`,
+              sender: 'user',
+              text: `已上传菜品照片：「${file.name}」`,
+              timestamp: new Date()
+            },
+            {
+              id: `assistant-config-${Date.now()}`,
+              sender: 'assistant',
+              text: `照片已收到，质感非常好！📸 接下来，请确认您期望的输出比例和清晰度，然后点击下方的「🚀 开始 AI 美化」：`,
+              timestamp: new Date(),
+              type: 'config'
+            }
+          ]);
+        }
       } catch (err) {
         console.error("Compression error:", err);
         setError("图片处理失败，请稍后重试");
+        if (mode === 'agent') {
+          setAgentMessages(prev => [
+            ...prev,
+            {
+              id: `assistant-err-${Date.now()}`,
+              sender: 'assistant',
+              text: `❌ 图片压缩或处理失败，请重新上传。`,
+              timestamp: new Date()
+            }
+          ]);
+        }
       } finally {
         setIsCompressing(false);
       }
@@ -388,11 +798,331 @@ ABSOLUTE RULES:
               <h1 className="text-xl font-bold tracking-tight font-display">菜品一键美化</h1>
             </div>
           </div>
+
+          {/* Desktop Mode Toggle Selector */}
+          <div className="flex bg-white/95 p-0.5 rounded-xl border border-neutral-200/60 shadow-sm">
+            <button
+              onClick={() => setMode('agent')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                mode === 'agent'
+                  ? 'bg-brand-sage text-white shadow-md font-bold'
+                  : 'text-neutral-500 hover:text-neutral-900'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              <span>智能体模式 (默认)</span>
+            </button>
+            <button
+              onClick={() => setMode('expert')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                mode === 'expert'
+                  ? 'bg-brand-sage text-white shadow-md font-bold'
+                  : 'text-neutral-500 hover:text-neutral-900'
+              }`}
+            >
+              <Sliders className="w-4 h-4" />
+              <span>专家模式</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 min-h-0">
-        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 min-h-0 flex flex-col">
+        {mode === 'agent' ? (
+          /* Agent Mode Conversational Layout */
+          <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-180px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden">
+            {/* Chat Room Header */}
+            <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-10 h-10 bg-brand-sage text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-sage/10 font-bold">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-ping"></span>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-800">AI 美学管家</h3>
+                  <p className="text-[10px] text-neutral-400">正在在线为您定制菜品光影</p>
+                </div>
+              </div>
+              <button 
+                onClick={resetAgentFlow} 
+                className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+                title="重置对话"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>全新美化</span>
+              </button>
+            </div>
+
+            {/* Chat Flow Scroll Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-neutral-50/50">
+              {agentMessages.map((msg, index) => {
+                const isAssistant = msg.sender === 'assistant';
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
+                  >
+                    {/* Avatar */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm text-xs font-bold ${
+                      isAssistant ? 'bg-brand-sage text-white' : 'bg-brand-amber/10 text-brand-amber'
+                    }`}>
+                      {isAssistant ? <Bot className="w-4 h-4" /> : 'ME'}
+                    </div>
+
+                    {/* Chat Bubble */}
+                    <div className="flex flex-col max-w-[85%] space-y-2">
+                      <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                        isAssistant 
+                          ? msg.type === 'error'
+                            ? 'bg-red-50 text-red-800 border border-red-100'
+                            : 'bg-white text-neutral-800 border border-neutral-200/60' 
+                          : 'bg-brand-sage text-white'
+                      }`}>
+                        {/* Render rich text */}
+                        <div className="whitespace-pre-wrap">
+                          {msg.text}
+                        </div>
+
+                        {/* Interactive Elements */}
+                        {isAssistant && msg.type === 'style-select' && (
+                          <div className="grid grid-cols-2 gap-2 mt-4">
+                            {STYLES.map(style => (
+                              <button
+                                key={style.id}
+                                onClick={() => handleSelectStyleInChat(style.id)}
+                                className={`p-3 text-left rounded-xl border transition-all text-xs flex flex-col gap-1 hover:shadow-md hover:border-brand-sage/50 active:scale-98 bg-brand-sand/10 ${
+                                  selectedStyle === style.id ? 'border-brand-sage bg-brand-sage/5 shadow-inner' : 'border-neutral-200 bg-white'
+                                }`}
+                              >
+                                <span className="font-bold text-neutral-800 flex items-center gap-1.5">
+                                  <Sparkles className="w-3 h-3 text-brand-amber" />
+                                  {style.name}
+                                </span>
+                                <span className="text-[10px] text-neutral-400 leading-normal line-clamp-1">{style.description}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'upload' && (
+                          <div className="mt-4">
+                            <div 
+                              onClick={() => !isGenerating && fileInputRef.current?.click()}
+                              className="border-2 border-dashed border-neutral-200 hover:border-brand-sage/50 bg-neutral-50 hover:bg-brand-sand/20 rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center gap-2"
+                            >
+                              <Upload className="w-8 h-8 text-brand-sage animate-bounce" />
+                              <span className="font-bold text-neutral-800 text-xs">点击或拖入您的菜品原图</span>
+                              <span className="text-[10px] text-neutral-400">支持常用图片格式，自动前端无损压缩</span>
+                            </div>
+                            
+                            {previewUrls[0] && (
+                              <div className="mt-3 relative w-32 aspect-square rounded-xl overflow-hidden border border-neutral-200 shadow-sm bg-brand-sand flex items-center justify-center">
+                                <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-cover" />
+                                <div className="absolute top-1 right-1">
+                                  <button 
+                                    onClick={() => removeImage(0)}
+                                    className="p-1.5 bg-white/90 rounded-lg shadow text-neutral-400 hover:text-red-500"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'config' && (
+                          <div className="mt-4 space-y-4 bg-neutral-50 p-4 rounded-xl border border-neutral-200/50">
+                            {/* Ratios selection */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">输出比例 (单选)</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {RATIOS.map(ratio => {
+                                  const isActive = selectedRatios.includes(ratio.id);
+                                  return (
+                                    <button
+                                      key={ratio.id}
+                                      onClick={() => setSelectedRatios([ratio.id])}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                        isActive 
+                                          ? 'bg-brand-sage text-white border-brand-sage shadow-md' 
+                                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                      }`}
+                                    >
+                                      {ratio.name} ({ratio.desc})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Resolution selection */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">生成画质</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {RESOLUTIONS.map(res => {
+                                  const isActive = selectedResolution === res.id;
+                                  return (
+                                    <button
+                                      key={res.id}
+                                      onClick={() => setSelectedResolution(res.id)}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                        isActive 
+                                          ? 'bg-brand-sage text-white border-brand-sage shadow-md' 
+                                          : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                                      }`}
+                                    >
+                                      {res.id} ({res.desc})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Generation trigger */}
+                            <button
+                              onClick={startAgentGeneration}
+                              disabled={isGenerating}
+                              className="w-full py-3 bg-brand-sage hover:bg-brand-sage-dark text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                              {isGenerating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Wand2 className="w-4 h-4" />
+                              )}
+                              <span>🚀 开始 AI 美化</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'generating' && (
+                          <div className="mt-4 p-4 bg-brand-sand/20 rounded-xl border border-brand-sand/40 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <Loader2 className="w-5 h-5 text-brand-sage animate-spin shrink-0" />
+                              <span className="text-xs font-bold text-brand-sage animate-pulse">{loadingMessages[loadingStep]}</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
+                              <motion.div 
+                                className="h-full bg-brand-sage"
+                                animate={{ width: ["0%", "95%"] }}
+                                transition={{ duration: 12, ease: "easeInOut" }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {isAssistant && msg.type === 'result' && (msg.payload?.images || (resultImages.length > 0 && resultImages[0])) && (
+                          <div className="mt-4 space-y-4">
+                            <div className="grid grid-cols-1 gap-4">
+                              {Object.entries(msg.payload?.images || resultImages[0]).map(([ratio, url]) => {
+                                if (!url) return null;
+                                const imageUrl = url as string;
+                                return (
+                                  <div key={ratio} className="bg-neutral-50 p-3 rounded-2xl border border-neutral-100 flex flex-col gap-2">
+                                    <div className="text-[9px] font-bold text-neutral-400 tracking-wider flex items-center justify-between">
+                                      <span>比例 {ratio} 美化大片</span>
+                                      <span className="text-brand-sage font-medium flex items-center gap-0.5">💡 点击图片预览放大</span>
+                                    </div>
+                                    <div 
+                                      className="relative aspect-square rounded-xl overflow-hidden border border-neutral-200/50 shadow bg-white flex items-center justify-center cursor-zoom-in group"
+                                      onClick={() => setZoomedImage(imageUrl)}
+                                    >
+                                      <img src={imageUrl} alt="Beautified" className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-102" />
+                                      {/* Zoom hover overlay */}
+                                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <div className="bg-white/90 p-2.5 rounded-full shadow-lg text-neutral-800 flex items-center gap-1 text-xs font-bold transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                                          <ImageIcon className="w-4 h-4" />
+                                          <span>点击放大预览</span>
+                                        </div>
+                                      </div>
+                                      <div className="absolute bottom-2 right-2 flex gap-1 z-10" onClick={(e) => e.stopPropagation()}>
+                                        <button 
+                                          onClick={() => downloadImage(imageUrl, 0, ratio)}
+                                          className="bg-white/95 text-brand-sage p-2 rounded-lg border border-neutral-200 hover:bg-brand-sand transition-all shadow"
+                                        >
+                                          <Download className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <button
+                                onClick={() => {
+                                  const imgs = msg.payload?.images || resultImages[0];
+                                  if (imgs) {
+                                    Object.entries(imgs).forEach(([ratio, url]) => {
+                                      if (url) downloadImage(url as string, 0, ratio);
+                                    });
+                                  }
+                                }}
+                                className="flex-1 py-2.5 bg-neutral-900 hover:bg-black text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                              >
+                                <Download className="w-4 h-4" />
+                                <span>打包保存到本地</span>
+                              </button>
+                              <button
+                                onClick={resetAgentFlow}
+                                className="flex-1 py-2.5 bg-brand-sand text-brand-sage hover:bg-brand-sand-dark rounded-xl text-xs font-bold transition-all border border-brand-sage/10 flex items-center justify-center gap-1.5"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                <span>继续美化新照片</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="text-[9px] text-neutral-400 px-1">
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Bottom Chat Bar */}
+            <div className="bg-white px-4 py-3.5 border-t border-neutral-200/60 flex items-center gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isAiResponding && handleSendMessage()}
+                placeholder="您可以输入例如：“帮我设置为暗调情绪风格，生成1:1的画质。”"
+                className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-sm border-0 focus:ring-2 focus:ring-brand-sage/30 placeholder-neutral-400 focus:outline-none transition-all"
+                disabled={isAiResponding}
+              />
+              <button
+                onClick={() => !isAiResponding && handleSendMessage()}
+                disabled={isAiResponding || !chatInput.trim()}
+                className={`p-3 rounded-xl shadow-lg shadow-brand-sage/15 flex items-center justify-center transition-all active:scale-95 ${
+                  chatInput.trim() && !isAiResponding
+                    ? 'bg-brand-sage text-white hover:bg-brand-sage-dark'
+                    : 'bg-neutral-100 text-neutral-400 shadow-none'
+                }`}
+              >
+                {isAiResponding ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Expert Mode (The original columns grid layout) */
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
           
           {/* Left Column: Controls */}
           <div className="space-y-6 lg:col-span-4 xl:col-span-3 lg:overflow-y-auto lg:pr-2 lg:pb-4 scrollbar-hide shrink-0">
@@ -655,8 +1385,8 @@ ABSOLUTE RULES:
               )}
             </div>
           </div>
-
         </div>
+        )}
       </main>
 
       <AnimatePresence>
