@@ -58,7 +58,7 @@ const RESOLUTIONS = [
 ] as const;
 type Resolution = typeof RESOLUTIONS[number]['id'];
 
-export default function Beautify({ saasData, mode, setMode }: { saasData: SaasData | null; mode: 'agent' | 'expert'; setMode: (mode: 'agent' | 'expert') => void }) {
+export default function Beautify({ saasData, mode, setMode, onChangeTab }: { saasData: SaasData | null; mode: 'agent' | 'expert'; setMode: (mode: 'agent' | 'expert') => void; onChangeTab?: (tab: 'beautify' | 'explosion') => void }) {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0].id);
@@ -92,13 +92,33 @@ export default function Beautify({ saasData, mode, setMode }: { saasData: SaasDa
       sender: 'assistant',
       timestamp: new Date(),
       type: 'style-select',
-      text: '你好！我是您的**美食美化 AI 助手**。我可以帮您为菜品照片替换精美的背景、进行光影重构，并提升食物质感。✨\n\n请先选择您期望的美化风格：'
+      text: '已为您进入 **菜品一键美化** 空间！🌟\n\n我可以帮您为菜品照片替换精美的背景、进行光影重构，并提升食物质感。✨\n\n您可以随时对我说“**切换到美食爆炸图**”以自由切换功能。\n\n请先选择您期望的美化风格：'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [loadingStep, setLoadingStep] = useState(0);
+
+  // Formatting helper to strip markdown raw tags (like **bold**) and render nicely
+  const renderFormattedText = (text: string) => {
+    if (!text) return null;
+    const parts = text.split('**');
+    return (
+      <span className="whitespace-pre-wrap leading-relaxed">
+        {parts.map((part, i) => {
+          if (i % 2 === 1) {
+            return (
+              <strong key={i} className="font-extrabold text-neutral-900 mx-[1px]">
+                {part}
+              </strong>
+            );
+          }
+          return part;
+        })}
+      </span>
+    );
+  };
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -237,6 +257,15 @@ export default function Beautify({ saasData, mode, setMode }: { saasData: SaasDa
 
     if (customText === undefined) {
       setChatInput('');
+    }
+
+    // Conversations routing / switching
+    const lowerText = textToSend.toLowerCase();
+    if (lowerText.includes('爆炸') || lowerText.includes('explosion') || lowerText.includes('拆解') || lowerText === '2') {
+      if (onChangeTab) {
+        onChangeTab('explosion');
+        return;
+      }
     }
 
     // Append user message
@@ -788,6 +817,14 @@ ABSOLUTE RULES:
 
   return (
     <div className="h-full flex flex-col bg-brand-paper text-neutral-900 font-sans selection:bg-brand-sage/20">
+      {/* Hidden file input always in the DOM at the root level so that the ref current is never null */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImageSelect} 
+        accept="image/*" 
+        className="hidden" 
+      />
       <header className="bg-brand-sand border-b border-neutral-200/60 shrink-0 hidden lg:block">
         <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -797,32 +834,6 @@ ABSOLUTE RULES:
               </div>
               <h1 className="text-xl font-bold tracking-tight font-display">菜品一键美化</h1>
             </div>
-          </div>
-
-          {/* Desktop Mode Toggle Selector */}
-          <div className="flex bg-white/95 p-0.5 rounded-xl border border-neutral-200/60 shadow-sm">
-            <button
-              onClick={() => setMode('agent')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                mode === 'agent'
-                  ? 'bg-brand-sage text-white shadow-md font-bold'
-                  : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              <Bot className="w-4 h-4" />
-              <span>智能体模式 (默认)</span>
-            </button>
-            <button
-              onClick={() => setMode('expert')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                mode === 'expert'
-                  ? 'bg-brand-sage text-white shadow-md font-bold'
-                  : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              <Sliders className="w-4 h-4" />
-              <span>专家模式</span>
-            </button>
           </div>
         </div>
       </header>
@@ -886,7 +897,7 @@ ABSOLUTE RULES:
                       }`}>
                         {/* Render rich text */}
                         <div className="whitespace-pre-wrap">
-                          {msg.text}
+                          {renderFormattedText(msg.text)}
                         </div>
 
                         {/* Interactive Elements */}
@@ -1139,13 +1150,6 @@ ABSOLUTE RULES:
                 onDrop={!isGenerating ? handleDrop : undefined}
                 onDragOver={handleDragOver}
               >
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleImageSelect} 
-                  accept="image/*" 
-                  className="hidden" 
-                />
                 {previewUrls[0] ? (
                   <div className="relative w-full aspect-[4/3] group cursor-default">
                     <img src={previewUrls[0]} alt="Preview" className="w-full h-full object-contain bg-brand-sand" />
