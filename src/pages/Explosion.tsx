@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Image as ImageIcon, Loader2, Layers, Download, X, Plus, ArrowLeft, Tag, Bot, Sliders, Send, RefreshCw, Sparkles, Upload } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Layers, Download, X, Plus, ArrowLeft, Tag, Bot, Sliders, Send, RefreshCw, Sparkles, Upload, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { saveImageStandard } from '../lib/saas';
 import { SaasData } from '../App';
@@ -19,7 +19,21 @@ const RESOLUTIONS = [
 ] as const;
 type Resolution = typeof RESOLUTIONS[number]['id'];
 
-export default function Explosion({ saasData, mode, setMode, onChangeTab }: { saasData: SaasData | null; mode: 'agent' | 'expert'; setMode: (mode: 'agent' | 'expert') => void; onChangeTab?: (tab: 'beautify' | 'explosion') => void }) {
+export default function Explosion({ 
+  saasData, 
+  mode, 
+  setMode, 
+  onChangeTab,
+  initialHistory,
+  onMessagesUpdate
+}: { 
+  saasData: SaasData | null; 
+  mode: 'agent' | 'expert'; 
+  setMode: (mode: 'agent' | 'expert') => void; 
+  onChangeTab?: (tab: 'choice' | 'beautify' | 'explosion') => void;
+  initialHistory?: any[];
+  onMessagesUpdate?: (messages: any[]) => void;
+}) {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [selectedRatios, setSelectedRatios] = useState<AspectRatio[]>(['3:4']);
@@ -61,15 +75,26 @@ export default function Explosion({ saasData, mode, setMode, onChangeTab }: { sa
     payload?: any;
   }
 
-  const [agentMessages, setAgentMessages] = useState<Message[]>([
-    {
+  const [agentMessages, setAgentMessages] = useState<Message[]>(() => {
+    const welcomeMsg: Message = {
       id: 'welcome',
       sender: 'assistant',
       timestamp: new Date(),
       type: 'upload',
       text: '已为您进入 **美食爆炸图** 空间！💥🍴\n\n我可以帮您把普通的菜品照片重构为悬浮、层级分明的**三维美食爆炸效果图**，并自动智能识别食材并添加图层标签。\n\n您可以随时对我说“**切换到菜品一键美化**”以自由切换功能。\n\n请先点击下方上传您的菜品照片以开始制作：'
+    };
+    if (initialHistory && initialHistory.length > 0) {
+      // Find and remove any temporary loading or transitioning messages at the end to make it clean
+      const filteredHistory = initialHistory.filter(msg => !msg.text?.includes('正在为您加载') && !msg.text?.includes('正在开启'));
+      return [...filteredHistory, welcomeMsg];
     }
-  ]);
+    return [welcomeMsg];
+  });
+
+  // Keep parent's messages in sync
+  useEffect(() => {
+    onMessagesUpdate?.(agentMessages);
+  }, [agentMessages, onMessagesUpdate]);
   const [chatInput, setChatInput] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -1066,7 +1091,7 @@ ABSOLUTE RULE - NO TEXT:
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 min-h-0 flex flex-col">
         {mode === 'agent' ? (
           /* Agent Mode Conversational Layout */
-          <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-180px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden">
+          <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-140px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden self-center my-auto">
             {/* Chat Room Header */}
             <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1082,14 +1107,24 @@ ABSOLUTE RULE - NO TEXT:
                   <p className="text-[10px] text-neutral-400">为您构建三维层级与图层标签</p>
                 </div>
               </div>
-              <button 
-                onClick={resetAgentFlow} 
-                className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
-                title="重置对话"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>全新制作</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={resetAgentFlow} 
+                  className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+                  title="重置对话"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>全新制作</span>
+                </button>
+                <button 
+                  onClick={() => onChangeTab?.('choice')} 
+                  className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+                  title="返回选择"
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  <span>返回选择</span>
+                </button>
+              </div>
             </div>
 
             {/* Chat Flow Scroll Body */}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Image as ImageIcon, Loader2, Wand2, Download, X, Plus, ArrowLeft, Bot, Sliders, Send, MessageSquare, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
+import { Upload, Image as ImageIcon, Loader2, Wand2, Download, X, Plus, ArrowLeft, Bot, Sliders, Send, MessageSquare, AlertCircle, Sparkles, RefreshCw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { saveImageStandard } from '../lib/saas';
 import { SaasData } from '../App';
@@ -58,7 +58,21 @@ const RESOLUTIONS = [
 ] as const;
 type Resolution = typeof RESOLUTIONS[number]['id'];
 
-export default function Beautify({ saasData, mode, setMode, onChangeTab }: { saasData: SaasData | null; mode: 'agent' | 'expert'; setMode: (mode: 'agent' | 'expert') => void; onChangeTab?: (tab: 'beautify' | 'explosion') => void }) {
+export default function Beautify({ 
+  saasData, 
+  mode, 
+  setMode, 
+  onChangeTab,
+  initialHistory,
+  onMessagesUpdate
+}: { 
+  saasData: SaasData | null; 
+  mode: 'agent' | 'expert'; 
+  setMode: (mode: 'agent' | 'expert') => void; 
+  onChangeTab?: (tab: 'choice' | 'beautify' | 'explosion') => void;
+  initialHistory?: any[];
+  onMessagesUpdate?: (messages: any[]) => void;
+}) {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0].id);
@@ -86,15 +100,26 @@ export default function Beautify({ saasData, mode, setMode, onChangeTab }: { saa
     payload?: any;
   }
 
-  const [agentMessages, setAgentMessages] = useState<Message[]>([
-    {
+  const [agentMessages, setAgentMessages] = useState<Message[]>(() => {
+    const welcomeMsg: Message = {
       id: 'welcome',
       sender: 'assistant',
       timestamp: new Date(),
       type: 'style-select',
       text: '已为您进入 **菜品一键美化** 空间！🌟\n\n我可以帮您为菜品照片替换精美的背景、进行光影重构，并提升食物质感。✨\n\n您可以随时对我说“**切换到美食爆炸图**”以自由切换功能。\n\n请先选择您期望的美化风格：'
+    };
+    if (initialHistory && initialHistory.length > 0) {
+      // Find and remove any temporary loading or transitioning messages at the end to make it clean
+      const filteredHistory = initialHistory.filter(msg => !msg.text?.includes('正在为您加载') && !msg.text?.includes('正在开启'));
+      return [...filteredHistory, welcomeMsg];
     }
-  ]);
+    return [welcomeMsg];
+  });
+
+  // Keep parent's messages in sync
+  useEffect(() => {
+    onMessagesUpdate?.(agentMessages);
+  }, [agentMessages, onMessagesUpdate]);
   const [chatInput, setChatInput] = useState('');
   const [isAiResponding, setIsAiResponding] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -841,7 +866,7 @@ ABSOLUTE RULES:
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 min-h-0 flex flex-col">
         {mode === 'agent' ? (
           /* Agent Mode Conversational Layout */
-          <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-180px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden">
+          <div className="flex-1 max-w-4xl w-full mx-auto flex flex-col h-[calc(100vh-140px)] min-h-[450px] bg-white rounded-3xl border border-neutral-200/50 shadow-xl overflow-hidden self-center my-auto">
             {/* Chat Room Header */}
             <div className="bg-brand-sand/40 px-6 py-4 border-b border-neutral-200/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -857,14 +882,24 @@ ABSOLUTE RULES:
                   <p className="text-[10px] text-neutral-400">正在在线为您定制菜品光影</p>
                 </div>
               </div>
-              <button 
-                onClick={resetAgentFlow} 
-                className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
-                title="重置对话"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>全新美化</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={resetAgentFlow} 
+                  className="flex items-center gap-1 text-xs text-neutral-500 hover:text-brand-sage bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+                  title="重置对话"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>全新美化</span>
+                </button>
+                <button 
+                  onClick={() => onChangeTab?.('choice')} 
+                  className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-xl hover:shadow-sm active:scale-95 transition-all"
+                  title="返回选择"
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  <span>返回选择</span>
+                </button>
+              </div>
             </div>
 
             {/* Chat Flow Scroll Body */}

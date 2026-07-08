@@ -106,6 +106,28 @@ export default function App() {
     }, 600);
   };
 
+  const handleTabChange = (tab: 'choice' | 'beautify' | 'explosion') => {
+    if (tab === 'choice') {
+      setChoiceMessages(prev => {
+        // Only append the welcome return message if the last message is not already a welcome return prompt to prevent duplication
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg && (lastMsg.id?.startsWith('assistant-return') || lastMsg.id === 'welcome')) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id: `assistant-return-${Date.now()}`,
+            sender: 'assistant',
+            text: '已为您返回主选择空间！🌟\n\n请问您接下来想进行哪项美食视觉创作？\n\n1. **菜品一键美化**（智能更换美化菜品背景与光影）\n2. **美食爆炸图**（多层食物级联爆炸拆解特效）\n\n请随时输入对应的数字，或者告诉我想做什么。',
+            timestamp: new Date()
+          }
+        ];
+      });
+    }
+    setActiveTab(tab);
+  };
+
   const renderFormattedText = (text: string) => {
     if (!text) return null;
     const parts = text.split('**');
@@ -344,7 +366,7 @@ export default function App() {
       ) : (
         <>
           {/* Sidebar for Desktop / Mobile Header */}
-          {activeTab !== 'choice' && (
+          {activeTab !== 'choice' && mode !== 'agent' && (
             <div className="hidden lg:flex w-64 bg-brand-sand border-r border-neutral-200/60 flex-col relative z-20 shrink-0 justify-between">
               <div>
                 <div className="h-20 flex items-center justify-between px-6 border-b border-neutral-200/60">
@@ -574,7 +596,14 @@ export default function App() {
                     transition={{ duration: 0.3, ease: "easeOut" }}
                     className="absolute inset-0 overflow-y-auto"
                   >
-                    <Beautify saasData={saasData} mode={mode} setMode={setMode} onChangeTab={(tab) => setActiveTab(tab)} />
+                    <Beautify 
+                      saasData={saasData} 
+                      mode={mode} 
+                      setMode={setMode} 
+                      onChangeTab={handleTabChange}
+                      initialHistory={choiceMessages}
+                      onMessagesUpdate={(msgs) => setChoiceMessages(msgs)}
+                    />
                   </motion.div>
                 )}
                 {activeTab === 'explosion' && (
@@ -586,7 +615,14 @@ export default function App() {
                     transition={{ duration: 0.3, ease: "easeOut" }}
                     className="absolute inset-0 overflow-y-auto"
                   >
-                    <Explosion saasData={saasData} mode={mode} setMode={setMode} onChangeTab={(tab) => setActiveTab(tab)} />
+                    <Explosion 
+                      saasData={saasData} 
+                      mode={mode} 
+                      setMode={setMode} 
+                      onChangeTab={handleTabChange}
+                      initialHistory={choiceMessages}
+                      onMessagesUpdate={(msgs) => setChoiceMessages(msgs)}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>
